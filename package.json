@@ -1,0 +1,26 @@
+{
+  "name": "wavelet-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wavelet - Lightweight Pure-TypeScript Local Music Engine & Player",
+  "scripts": {
+    "wavelet": "./wavelet.sh",
+    "dev:backend": "pnpm --filter @wavelet/backend dev",
+    "dev:frontend": "pnpm --filter @wavelet/frontend dev",
+    "build": "pnpm --filter @wavelet/shared build && pnpm --filter @wavelet/backend build && pnpm --filter @wavelet/frontend build",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "typecheck": "pnpm -r --parallel exec tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
+    "test:perf": "vitest run tests/perf"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@vitest/coverage-v8": "^5.0.3",
+    "typescript": "^5.7.3",
+    "vitest": "^5.0.3"
+  }
+}

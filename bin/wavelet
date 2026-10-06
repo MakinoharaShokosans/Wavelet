@@ -1,0 +1,783 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Wavelet ♫ 发烧级母带音乐引擎与播放器 - 统一控制脚本
+# ==============================================================================
+# 无论从何处调用（包括软链接形式），均能自动定位工程目录、自动检测载入环境变量、
+# 一键控制服务的启动/停止/重启/状态巡检/日志追踪，并支持全局一键安装。
+# ==============================================================================
+
+set -eo pipefail
+
+# ------------------------------------------------------------------------------
+# 1. 颜色与终端样式定义
+# ------------------------------------------------------------------------------
+BOLD='\033[1m'
+DIM='\033[2m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+info()    { echo -e " ${CYAN}ℹ${NC}  $*"; }
+success() { echo -e " ${GREEN}✔${NC}  $*"; }
+warn()    { echo -e " ${YELLOW}▲${NC}  $*"; }
+error()   { echo -e " ${RED}✖${NC}  $*" >&2; }
+dim()     { echo -e "    ${DIM}$*${NC}"; }
+
+# ------------------------------------------------------------------------------
+# 2. 解析当前脚本真实物理路径与工程根目录 (穿透任意层级软链接)
+# ------------------------------------------------------------------------------
+resolve_script_source() {
+  local source="${BASH_SOURCE[0]}"
+  while [ -h "$source" ]; do
+    local dir
+    dir="$(cd -P "$(dirname "$source")" >/dev/null 2>&1 && pwd)"
+    source="$(readlink "$source")"
+    [[ $source != /* ]] && source="$dir/$source"
+  done
+  cd -P "$(dirname "$source")" >/dev/null 2>&1 && pwd
+}
+
+SCRIPT_DIR="$(resolve_script_source)"
+
+# 判断脚本是在 bin/ 目录下还是在工程根目录
+if [[ -f "$SCRIPT_DIR/package.json" && -d "$SCRIPT_DIR/packages" ]]; then
+  PROJECT_ROOT="$SCRIPT_DIR"
+else
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd)"
+fi
+
+CANONICAL_BIN="$PROJECT_ROOT/bin/wavelet"
+
+# ------------------------------------------------------------------------------
+# 3. 环境变量自动探测与载入引擎
+# ------------------------------------------------------------------------------
+LOADED_ENV_FILE=""
+
+load_env_file() {
+  local env_file="$1"
+  if [[ -f "$env_file" ]]; then
+    # 逐行安全解析 KEY=VALUE，跳过注释与空行
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      if [[ -z "$line" || "$line" =~ ^# ]]; then
+        continue
+      fi
+      if [[ "$line" =~ ^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local val="${BASH_REMATCH[2]}"
+        # 去除首尾的引号
+        val="${val#[\"\']}"
+        val="${val%[\"\']}"
+        # 仅在当前未显式设置时注入环境
+        if [[ -z "${!key:-}" ]]; then
+          export "$key"="$val"
+        fi
+      fi
+    done < "$env_file"
+    LOADED_ENV_FILE="$env_file"
+    return 0
+  fi
+  return 1
+}
+
+detect_and_load_env() {
+  local custom_env="${1:-}"
+  
+  if [[ -n "$custom_env" && -f "$custom_env" ]]; then
+    load_env_file "$custom_env"
+    return
+  fi
+
+  if [[ -n "${WAVELET_ENV_FILE:-}" && -f "$WAVELET_ENV_FILE" ]]; then
+    load_env_file "$WAVELET_ENV_FILE"
+    return
+  fi
+
+  # 优先级 1: 当前工作目录下 .env
+  if [[ "$PWD" != "$PROJECT_ROOT" && -f "$PWD/.env" ]]; then
+    load_env_file "$PWD/.env"
+    return
+  fi
+
+  # 优先级 2: Wavelet 工程根目录下的 .env
+  if [[ -f "$PROJECT_ROOT/.env" ]]; then
+    load_env_file "$PROJECT_ROOT/.env"
+    return
+  fi
+
+  # 优先级 3: 用户配置目录 ~/.config/wavelet/.env
+  if [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/wavelet/.env" ]]; then
+    load_env_file "${XDG_CONFIG_HOME:-$HOME/.config}/wavelet/.env"
+    return
+  fi
+
+  # 优先级 4: ~/.wavelet/.env
+  if [[ -f "$HOME/.wavelet/.env" ]]; then
+    load_env_file "$HOME/.wavelet/.env"
+    return
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# 4. 初始化全局配置默认值
+# ------------------------------------------------------------------------------
+init_defaults() {
+  export NODE_ENV="${NODE_ENV:-production}"
+  export HOST="${WAVELET_HOST:-${HOST:-127.0.0.1}}"
+  export PORT="${WAVELET_PORT:-${PORT:-23333}}"
+
+  WAVELET_DATA_DIR="${WAVELET_DATA_DIR:-$HOME/.wavelet}"
+  WAVELET_LOG_DIR="${WAVELET_LOG_DIR:-$WAVELET_DATA_DIR/logs}"
+  WAVELET_PID_FILE="${WAVELET_PID_FILE:-$WAVELET_DATA_DIR/wavelet.pid}"
+  WAVELET_LOG_FILE="${WAVELET_LOG_FILE:-$WAVELET_LOG_DIR/wavelet.log}"
+  WAVELET_DAEMON_LOG="${WAVELET_DAEMON_LOG:-$WAVELET_LOG_DIR/daemon.log}"
+  WAVELET_INSPECTION_LOG="${WAVELET_LOG_DIR}/inspection.log"
+
+  export WAVELET_PROJECT_ROOT="$PROJECT_ROOT"
+
+  mkdir -p "$WAVELET_DATA_DIR" "$WAVELET_LOG_DIR"
+}
+
+# ------------------------------------------------------------------------------
+# 5. 依赖环境与构建产物巡检
+# ------------------------------------------------------------------------------
+ensure_dependencies() {
+  if ! command -v node >/dev/null 2>&1; then
+    error "未检测到 Node.js 运行时环境，请先安装 Node.js (>= 20.0.0)"
+    exit 1
+  fi
+
+  local node_major
+  node_major="$(node -v | cut -d'.' -f1 | tr -d 'v')"
+  if (( node_major < 20 )); then
+    error "Node.js 版本必须 >= 20.0.0 (当前版本: $(node -v))"
+    exit 1
+  fi
+}
+
+ensure_built() {
+  local backend_entry="$PROJECT_ROOT/packages/backend/dist/index.js"
+  local frontend_entry="$PROJECT_ROOT/packages/frontend/dist/index.html"
+
+  if [[ ! -f "$backend_entry" || ! -f "$frontend_entry" ]]; then
+    info "检测到缺少前端或后端构建产物，正在自动为您编译工程..."
+    if command -v pnpm >/dev/null 2>&1; then
+      (cd "$PROJECT_ROOT" && pnpm build)
+      success "工程全量编译成功"
+    else
+      error "未找到 pnpm 构建工具，请在 $PROJECT_ROOT 目录下执行 pnpm build 后重试"
+      exit 1
+    fi
+  fi
+}
+
+# ------------------------------------------------------------------------------
+# 6. 进程存活检查工具
+# ------------------------------------------------------------------------------
+get_running_pid() {
+  if [[ -f "$WAVELET_PID_FILE" ]]; then
+    local pid
+    pid="$(cat "$WAVELET_PID_FILE" 2>/dev/null || true)"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      echo "$pid"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# ------------------------------------------------------------------------------
+# 7. 打印 ASCII 艺术横幅
+# ------------------------------------------------------------------------------
+print_banner() {
+  local pid="${1:-}"
+  echo -e "${CYAN}"
+  cat << "EOF"
+ __      __                     .__          __   
+/  \    /  \_____ ___  __ ____  |  |   _____/  |_ 
+\   \/\/   /\__  \\  \/ // __ \ |  | _/ __ \   __\
+ \        /  / __ \\   /\  ___/ |  |_\  ___/|  |  
+  \__/\  /  (____  /\_/  \___  >|____/\___  >__|  
+       \/        \/          \/           \/      
+EOF
+  echo -e "${NC}"
+  echo -e "  ${BOLD}Wavelet 发烧级母带音乐引擎与播放器${NC} ${DIM}v0.1.0${NC}"
+  echo -e "  --------------------------------------------------"
+  echo -e "  ${GREEN}● 运行状态${NC} : 正常在线"
+  [[ -n "$pid" ]] && echo -e "  ${BLUE}● 进程 PID${NC} : ${pid}"
+  echo -e "  ${MAGENTA}● Web 界面${NC} : ${BOLD}http://${HOST}:${PORT}${NC}"
+  echo -e "  ${YELLOW}● 系统日志${NC} : ${WAVELET_LOG_FILE}"
+  if [[ -n "$LOADED_ENV_FILE" ]]; then
+    echo -e "  ${CYAN}● 环境文件${NC} : ${LOADED_ENV_FILE}"
+  fi
+  echo -e "  --------------------------------------------------"
+  echo -e "  ${DIM}快捷指令: 'wavelet logs' 查看日志 | 'wavelet stop' 停止服务${NC}"
+  echo ""
+}
+
+# ------------------------------------------------------------------------------
+# 8. 核心子命令逻辑
+# ------------------------------------------------------------------------------
+
+# 启动服务
+cmd_start() {
+  local foreground=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -d|--daemon|-b|--background)
+        foreground=0
+        shift
+        ;;
+      -f|--foreground)
+        foreground=1
+        shift
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  ensure_dependencies
+  ensure_built
+
+  local existing_pid
+  if existing_pid="$(get_running_pid)"; then
+    warn "Wavelet 服务已在运行中 (PID: ${existing_pid})"
+    echo -e "  Web 访问地址: ${BOLD}http://${HOST}:${PORT}${NC}"
+    info "正在为您自动接入实时流式日志 (按 Ctrl+C 可退出日志跟踪，后台服务保持运行)..."
+    echo -e "${DIM}----------------------------------------------------------------------${NC}"
+    cmd_logs -f
+    return 0
+  fi
+
+  # 清理可能残留的死 PID 文件
+  rm -f "$WAVELET_PID_FILE"
+
+  local backend_dist="$PROJECT_ROOT/packages/backend/dist/index.js"
+
+  if (( foreground )); then
+    print_banner "$$"
+    echo -e " ${GREEN}▶${NC} ${BOLD}已进入实时开发调试模式${NC}：实时控制台日志已接通，按 ${BOLD}Ctrl+C${NC} 可优雅停止服务"
+    echo -e "${DIM}----------------------------------------------------------------------${NC}"
+    [[ -n "$LOADED_ENV_FILE" ]] && dim "已载入环境变量: $LOADED_ENV_FILE"
+
+    # 启动 Node 进程承接标准输出与错误
+    node "$backend_dist" &
+    local node_pid=$!
+    echo "$node_pid" > "$WAVELET_PID_FILE"
+
+    cleanup_fg() {
+      trap - INT TERM EXIT
+      echo ""
+      info "正在优雅停机 Wavelet 服务 (PID: ${node_pid})..."
+      if kill -0 "$node_pid" 2>/dev/null; then
+        kill -TERM "$node_pid" 2>/dev/null || true
+        wait "$node_pid" 2>/dev/null || true
+      fi
+      pkill -P "$node_pid" 2>/dev/null || true
+      rm -f "$WAVELET_PID_FILE"
+      success "Wavelet 服务已安全退出"
+      exit 0
+    }
+
+    trap cleanup_fg INT TERM EXIT
+    wait "$node_pid" || true
+    rm -f "$WAVELET_PID_FILE"
+  else
+    info "正在后台启动 Wavelet 音乐引擎..."
+    [[ -n "$LOADED_ENV_FILE" ]] && dim "已载入环境变量: $LOADED_ENV_FILE"
+
+    # 后台无阻塞启动并完全分离会话 (setsid)
+    setsid node "$backend_dist" < /dev/null >> "$WAVELET_DAEMON_LOG" 2>&1 &
+    local new_pid=$!
+    echo "$new_pid" > "$WAVELET_PID_FILE"
+
+    # 等待进程健康启动 (最多等待 3 秒)
+    local ready=0
+    for ((i=1; i<=15; i++)); do
+      if ! kill -0 "$new_pid" 2>/dev/null; then
+        error "Wavelet 启动异常退出，请运行 'wavelet logs' 查看错误日志："
+        tail -n 20 "$WAVELET_DAEMON_LOG"
+        rm -f "$WAVELET_PID_FILE"
+        exit 1
+      fi
+      # 检测端口或日志就绪信号
+      if grep -q "Fastify 本地网关监听就绪" "$WAVELET_DAEMON_LOG" 2>/dev/null; then
+        ready=1
+        break
+      fi
+      sleep 0.2
+    done
+
+    print_banner "$new_pid"
+  fi
+}
+
+# 停止服务
+cmd_stop() {
+  local pid
+  if ! pid="$(get_running_pid)"; then
+    warn "Wavelet 服务当前未运行"
+    rm -f "$WAVELET_PID_FILE"
+    return 0
+  fi
+
+  info "正在停止 Wavelet 进程 (PID: ${pid})..."
+  kill -TERM "$pid" 2>/dev/null || true
+
+  # 等待最多 8 秒优雅停机
+  local stopped=0
+  for ((i=1; i<=16; i++)); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      stopped=1
+      break
+    fi
+    sleep 0.5
+  done
+
+  if (( ! stopped )); then
+    warn "进程未能在预定时间内优雅退出，执行强制终止..."
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+
+  # 清理该进程派生的所有子进程 (如 FFmpeg, aplay 等)
+  pkill -P "$pid" 2>/dev/null || true
+
+  rm -f "$WAVELET_PID_FILE"
+  success "Wavelet 服务已完全安全停止"
+}
+
+# 重启服务
+cmd_restart() {
+  info "正在执行 Wavelet 重新启动..."
+  cmd_stop
+  sleep 1
+  cmd_start "$@"
+}
+
+# 运行状态巡检
+cmd_status() {
+  local pid
+  if pid="$(get_running_pid)"; then
+    echo -e " ${GREEN}●${NC} ${BOLD}Wavelet 服务正在运行${NC}"
+    echo -e "   PID       : ${pid}"
+    echo -e "   监听地址  : ${BOLD}http://${HOST}:${PORT}${NC}"
+    echo -e "   日志路径  : ${WAVELET_LOG_FILE}"
+
+    # 尝试获取进程占用内存与运行时间
+    if command -v ps >/dev/null 2>&1; then
+      local mem_rss cpu_usage etime
+      mem_rss="$(ps -p "$pid" -o rss= 2>/dev/null || echo 0)"
+      cpu_usage="$(ps -p "$pid" -o %cpu= 2>/dev/null || echo 0)"
+      etime="$(ps -p "$pid" -o etime= 2>/dev/null || echo '未知')"
+      if [[ "$mem_rss" -gt 0 ]]; then
+        local mem_mb=$(( mem_rss / 1024 ))
+        echo -e "   内存占用  : ${mem_mb} MB (RSS)"
+        echo -e "   CPU 负载  : ${cpu_usage}%"
+        echo -e "   已运行时长: ${etime}"
+      fi
+    fi
+
+    # 尝试探测 /api/stats 数据 (携带 Local-Session-Key 安全握手)
+    if command -v curl >/dev/null 2>&1; then
+      local token
+      token="$(curl -s -m 1 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+      local stats_res=""
+      if [[ -n "$token" ]]; then
+        stats_res="$(curl -s -m 1 -H "x-wavelet-session: $token" "http://${HOST}:${PORT}/api/stats" 2>/dev/null || true)"
+      fi
+      if [[ -n "$stats_res" && "$stats_res" =~ trackCount ]]; then
+        local tracks playlists
+        tracks="$(echo "$stats_res" | grep -o '"trackCount":[0-9]*' | cut -d':' -f2 || echo 0)"
+        playlists="$(echo "$stats_res" | grep -o '"playlistCount":[0-9]*' | cut -d':' -f2 || echo 0)"
+        echo -e "   曲库统计  : ${tracks} 首音乐 · ${playlists} 个歌单"
+      fi
+    fi
+  else
+    echo -e " ${RED}○${NC} ${BOLD}Wavelet 服务未运行${NC}"
+    echo -e "   提示: 输入 'wavelet start' 即可快速启动服务"
+  fi
+}
+
+# 查看日志
+cmd_logs() {
+  local follow=0
+  local lines=50
+  local target_log="$WAVELET_LOG_FILE"
+  local clean=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -f|--follow)
+        follow=1
+        shift
+        ;;
+      -n)
+        lines="${2:-50}"
+        shift 2
+        ;;
+      --clean|--clear)
+        clean=1
+        shift
+        ;;
+      --inspection)
+        target_log="$WAVELET_INSPECTION_LOG"
+        shift
+        ;;
+      --daemon)
+        target_log="$WAVELET_DAEMON_LOG"
+        shift
+        ;;
+      *)
+        if [[ "$1" =~ ^[0-9]+$ ]]; then
+          lines="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if (( clean )); then
+    > "$WAVELET_LOG_FILE"
+    > "$WAVELET_DAEMON_LOG"
+    success "已清空 Wavelet 日志文件"
+    return 0
+  fi
+
+  # 若主日志不存在，检查 daemon 日志
+  if [[ ! -s "$target_log" && -s "$WAVELET_DAEMON_LOG" ]]; then
+    target_log="$WAVELET_DAEMON_LOG"
+  fi
+
+  if [[ ! -f "$target_log" ]]; then
+    warn "暂无日志文件: $target_log"
+    return 0
+  fi
+
+  info "正在展示日志: ${BOLD}$target_log${NC} (最后 ${lines} 行)"
+  echo -e "${DIM}----------------------------------------------------------------------${NC}"
+
+  if (( follow )); then
+    tail -n "$lines" -f "$target_log"
+  else
+    tail -n "$lines" "$target_log"
+  fi
+}
+
+# 打印当前环境变量与生效配置
+cmd_env() {
+  echo -e " ${BOLD}Wavelet 运行时环境与配置概览${NC}"
+  echo -e " --------------------------------------------------"
+  echo -e "  工程根目录 (PROJECT_ROOT)  : ${PROJECT_ROOT}"
+  echo -e "  可执行文件 (CANONICAL_BIN) : ${CANONICAL_BIN}"
+  echo -e "  载入的环境文件             : ${LOADED_ENV_FILE:-<系统环境/默认>}"
+  echo -e "  监听地址 (HOST)            : ${HOST}"
+  echo -e "  监听端口 (PORT)            : ${PORT}"
+  echo -e "  运行模式 (NODE_ENV)        : ${NODE_ENV}"
+  echo -e "  数据存储目录               : ${WAVELET_DATA_DIR}"
+  echo -e "  日志存储目录               : ${WAVELET_LOG_DIR}"
+  echo -e "  PID 文件路径               : ${WAVELET_PID_FILE}"
+  echo -e "  Node.js 运行时             : $(node -v 2>/dev/null || echo '未安装')"
+  echo -e " --------------------------------------------------"
+}
+
+# 重新编译工程
+cmd_build() {
+  ensure_dependencies
+  info "正在全量编译 Wavelet (Shared + Backend + Frontend)..."
+  if command -v pnpm >/dev/null 2>&1; then
+    (cd "$PROJECT_ROOT" && pnpm build)
+    success "全工程编译构建完毕！"
+  else
+    error "未找到 pnpm，请安装 pnpm 后重试"
+    exit 1
+  fi
+}
+
+# 一键全局安装至 PATH
+cmd_install() {
+  local install_dir="$HOME/.local/bin"
+  mkdir -p "$install_dir"
+
+  local target_link="$install_dir/wavelet"
+
+  # 建立软链接
+  ln -sf "$CANONICAL_BIN" "$target_link"
+  chmod +x "$CANONICAL_BIN"
+
+  success "已将 Wavelet 控制脚本成功链接到: ${BOLD}${target_link}${NC}"
+
+  # 检查 ~/.local/bin 是否在用户的 PATH 中
+  if [[ ":$PATH:" != *":$install_dir:"* ]]; then
+    warn "注意: ${install_dir} 尚未加入当前终端的 \$PATH 中。"
+    echo -e "  建议将以下配置追加至您的 ${BOLD}~/.bashrc${NC} 或 ${BOLD}~/.zshrc${NC}："
+    echo -e "  ${CYAN}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+  else
+    success "检测到 ${install_dir} 已在系统 PATH 中！"
+    echo -e "  现在您可以在任何终端窗口的任意路径下，直接运行 ${BOLD}wavelet${NC} 啦！"
+  fi
+}
+
+# 卸载全局软链接
+cmd_uninstall() {
+  local target_link="$HOME/.local/bin/wavelet"
+  if [[ -L "$target_link" || -f "$target_link" ]]; then
+    rm -f "$target_link"
+    success "已从 ${target_link} 移除软链接"
+  else
+    warn "未在 ${target_link} 发现 Wavelet 软链接"
+  fi
+}
+
+# 曲库备份与跨机器迁移
+cmd_backup() {
+  local action="${1:-help}"
+  shift || true
+
+  case "$action" in
+    export)
+      local target="${1:-}"
+      info "正在触发 Wavelet 曲库全量备份导出..."
+      if ! get_running_pid >/dev/null; then
+        warn "Wavelet 服务尚未运行，正在本地离线调用 BackupManager..."
+        (cd "$PROJECT_ROOT" && node -e '
+          import("@wavelet/backend").then(async ({ BackupManager }) => {
+            const backupMgr = new BackupManager();
+            const targetPath = process.argv[1] || undefined;
+            console.log("  -> 正在打包曲库与数据库记录...");
+            const res = await backupMgr.exportBackup({ targetZipPath: targetPath });
+            console.log("  ✔ 全量备份导出成功！");
+            console.log("    文件路径: " + res.targetZipPath);
+            console.log("    曲目总数: " + res.trackCount + " 首");
+            console.log("    歌单总数: " + res.playlistCount + " 个");
+            console.log("    文件大小: " + (res.fileSize / 1024 / 1024).toFixed(2) + " MB");
+          }).catch(e => { console.error("✖ 导出失败:", e); process.exit(1); });
+        ' "$target")
+      else
+        local token
+        token="$(curl -s -m 2 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+        local body="{}"
+        if [[ -n "$target" ]]; then
+          body="{\"targetZipPath\":\"$target\"}"
+        fi
+        local res
+        res="$(curl -s -m 120 -H "x-wavelet-session: $token" -H "Content-Type: application/json" -d "$body" "http://${HOST}:${PORT}/api/backup/export" 2>/dev/null || true)"
+        if [[ "$res" =~ \"success\":true ]]; then
+          success "曲库全量备份导出完成！"
+          dim "$res"
+        else
+          error "备份导出失败: $res"
+          return 1
+        fi
+      fi
+      ;;
+    import)
+      local zip_file="${1:-}"
+      local dest_dir="${2:-}"
+      if [[ -z "$zip_file" ]]; then
+        error "请提供备份包文件路径: wavelet backup import <file.zip> [dest_dir]"
+        return 1
+      fi
+      info "正在还原备份包: $zip_file"
+      if ! get_running_pid >/dev/null; then
+        warn "Wavelet 服务尚未运行，正在本地离线调用 BackupManager..."
+        (cd "$PROJECT_ROOT" && node -e '
+          import("@wavelet/backend").then(async ({ BackupManager }) => {
+            const backupMgr = new BackupManager();
+            const zipPath = process.argv[1];
+            const destDir = process.argv[2] || undefined;
+            console.log("  -> 正在校验并解压备份数据...");
+            const res = await backupMgr.importBackup(zipPath, { destinationAudioDir: destDir });
+            console.log("  ✔ 曲库全量还原恢复成功！");
+            console.log("    恢复曲目: " + res.restoredTracks + " 首");
+            console.log("    恢复歌单: " + res.restoredPlaylists + " 个");
+            console.log("    音乐目录: " + res.destinationAudioDir);
+          }).catch(e => { console.error("✖ 还原失败:", e); process.exit(1); });
+        ' "$zip_file" "$dest_dir")
+      else
+        local token
+        token="$(curl -s -m 2 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+        local body
+        if [[ -n "$dest_dir" ]]; then
+          body="{\"zipFilePath\":\"$zip_file\",\"destinationAudioDir\":\"$dest_dir\"}"
+        else
+          body="{\"zipFilePath\":\"$zip_file\"}"
+        fi
+        local res
+        res="$(curl -s -m 180 -H "x-wavelet-session: $token" -H "Content-Type: application/json" -d "$body" "http://${HOST}:${PORT}/api/backup/import" 2>/dev/null || true)"
+        if [[ "$res" =~ \"success\":true ]]; then
+          success "曲库全量还原恢复成功！"
+          dim "$res"
+        else
+          error "备份还原失败: $res"
+          return 1
+        fi
+      fi
+      ;;
+    *)
+      echo -e "${BOLD}Wavelet 曲库备份与跨机器迁移:${NC}"
+      echo -e "  wavelet backup export [out.zip]       # 全量打包曲库音频、元数据与歌单"
+      echo -e "  wavelet backup import <file.zip> [dir] # 从备份包还原曲库并重映射路径"
+      ;;
+  esac
+}
+
+# 原地扫描指定目录并录入曲库
+cmd_import() {
+  local dir="${1:-}"
+  if [[ -z "$dir" ]]; then
+    error "请提供待扫描的原地音乐目录: wavelet import <dir_path>"
+    return 1
+  fi
+  info "正在触发原地扫描索引目录: $dir"
+  if ! get_running_pid >/dev/null; then
+    warn "Wavelet 服务未启动，正在启动服务后导入..."
+    cmd_start
+    sleep 2
+  fi
+  local token
+  token="$(curl -s -m 2 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+  local res
+  res="$(curl -s -m 300 -H "x-wavelet-session: $token" -H "Content-Type: application/json" -d "{\"directoryPath\":\"$dir\"}" "http://${HOST}:${PORT}/api/import/directory" 2>/dev/null || true)"
+  if [[ "$res" =~ \"success\":true ]]; then
+    success "目录原地扫描与坏损自愈完成！"
+    dim "$res"
+  else
+    error "导入失败: $res"
+    return 1
+  fi
+}
+
+# 帮助信息
+cmd_help() {
+  echo -e "${BOLD}Wavelet ♫ 发烧级母带音乐引擎与播放器 - 统一控制脚手架${NC}"
+  echo ""
+  echo -e "${BOLD}用法:${NC}"
+  echo -e "  wavelet <子命令> [选项]"
+  echo ""
+  echo -e "${BOLD}常用子命令:${NC}"
+  echo -e "  ${GREEN}start${NC} [-d]         启动 Wavelet 服务 (${BOLD}默认实时前台日志模式${NC}，-d 为后台守护模式)"
+  echo -e "  ${GREEN}dev${NC}                实时前台开发调试模式 (与直接输入 wavelet 效果一致)"
+  echo -e "  ${CYAN}daemon${NC}             后台守护模式启动 Wavelet 服务"
+  echo -e "  ${RED}stop${NC}               优雅停止正在运行的 Wavelet 服务"
+  echo -e "  ${YELLOW}restart${NC}            重新启动 Wavelet 服务"
+  echo -e "  ${BLUE}status${NC}             查看当前运行状态、PID、内存占用及曲库概要"
+  echo -e "  ${CYAN}logs${NC} [-f] [-n 50]  实时查看系统运行日志 (-f 实时跟踪，--clean 清空日志)"
+  echo -e "  ${MAGENTA}env${NC}                查看当前生效的环境变量、配置文件与工作目录"
+  echo -e "  ${CYAN}import${NC} <dir>       原地就地扫描音频目录并索引曲库 (零冗余文件拷贝)"
+  echo -e "  ${MAGENTA}backup${NC} export|import 曲库全量备份打包与跨机器还原迁移 (.zip)"
+  echo -e "  ${GREEN}build${NC}              重新执行全工程编译构建 (pnpm build)"
+  echo -e "  ${CYAN}install${NC}            一键将 wavelet 注册到用户 PATH (~/.local/bin/wavelet)"
+  echo -e "  ${RED}uninstall${NC}          卸载全局 wavelet 指令"
+  echo -e "  ${DIM}help${NC}               显示本帮助手册"
+  echo ""
+  echo -e "${BOLD}环境变量自动检测规则:${NC}"
+  echo -e "  1. --env-file <path> 参数或 \$WAVELET_ENV_FILE"
+  echo -e "  2. 当前工作目录下的 .env"
+  echo -e "  3. Wavelet 工程根目录下的 .env"
+  echo -e "  4. 用户全局配置 ~/.config/wavelet/.env 或 ~/.wavelet/.env"
+  echo ""
+  echo -e "${BOLD}示例:${NC}"
+  echo -e "  wavelet                    # 直接启动并实时输出日志 (实时开发调试)"
+  echo -e "  wavelet start -d           # 后台守护模式运行"
+  echo -e "  wavelet logs -f            # 实时追踪运行中的后台日志输出"
+  echo -e "  wavelet import ~/Music     # 原地索引音乐目录"
+  echo -e "  wavelet backup export      # 全量打包导出为 .zip"
+  echo -e "  wavelet backup import bak.zip # 跨机器还原曲库"
+  echo ""
+}
+
+# ------------------------------------------------------------------------------
+# 9. 主程序调度入口
+# ------------------------------------------------------------------------------
+main() {
+  local custom_env=""
+  local args=()
+
+  # 提取全局选项
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --env-file)
+        custom_env="$2"
+        shift 2
+        ;;
+      -v|--version|version)
+        echo "Wavelet v0.1.0 (Bit-Perfect Pure-TypeScript Audio Engine)"
+        exit 0
+        ;;
+      -h|--help)
+        cmd_help
+        exit 0
+        ;;
+      *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  # 载入环境与默认配置
+  detect_and_load_env "$custom_env"
+  init_defaults
+
+  local subcmd="${args[0]:-start}"
+  local subargs=("${args[@]:1}")
+
+  case "$subcmd" in
+    start)
+      cmd_start "${subargs[@]}"
+      ;;
+    dev)
+      cmd_start -f "${subargs[@]}"
+      ;;
+    daemon)
+      cmd_start -d "${subargs[@]}"
+      ;;
+    stop)
+      cmd_stop "${subargs[@]}"
+      ;;
+    restart)
+      cmd_restart "${subargs[@]}"
+      ;;
+    status)
+      cmd_status "${subargs[@]}"
+      ;;
+    logs|log)
+      cmd_logs "${subargs[@]}"
+      ;;
+    env)
+      cmd_env "${subargs[@]}"
+      ;;
+    import)
+      cmd_import "${subargs[@]}"
+      ;;
+    backup)
+      cmd_backup "${subargs[@]}"
+      ;;
+    build)
+      cmd_build "${subargs[@]}"
+      ;;
+    install)
+      cmd_install "${subargs[@]}"
+      ;;
+    uninstall)
+      cmd_uninstall "${subargs[@]}"
+      ;;
+    help)
+      cmd_help
+      ;;
+    *)
+      error "未知子命令: $subcmd"
+      echo ""
+      cmd_help
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

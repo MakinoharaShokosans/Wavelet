@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "server": {
+    "host": "127.0.0.1",
+    "port": 23333,
+    "corsOrigins": ["http://127.0.0.1:5173", "http://localhost:5173"]
+  },
+  "storage": {
+    "dataDir": "~/.wavelet",
+    "libraryDir": "~/Music/Wavelet_Library",
+    "quarantineDir": "~/.wavelet/quarantine",
+    "cacheDir": "~/.wavelet/cache",
+    "logsDir": "~/.wavelet/logs",
+    "databaseFile": "~/.wavelet/wavelet.db"
+  },
+  "audio": {
+    "outputMode": "web",
+    "outputDevice": "default",
+    "bufferSize": 4096,
+    "defaultVolume": 0.8
+  },
+  "transcoder": {
+    "maxConcurrency": 2,
+    "compressionLevel": 5,
+    "customFfmpegPath": ""
+  },
+  "logging": {
+    "level": "info",
+    "maxFileSizeMB": 10,
+    "maxFiles": 3,
+    "consolePretty": true
+  }
+}
