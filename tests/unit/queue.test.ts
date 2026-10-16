@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   PlaybackRouter,
   TrackRepository,
@@ -80,6 +82,13 @@ describe('Unit Test: Playback Queue & Modes (播放队列与播放模式状态�
     loadConfig(sandbox.configPath);
     runMigrations(getDatabase());
 
+    // 创建虚拟音频文件以满足物理文件存在性校验
+    for (const t of sampleTracks) {
+      const realPath = path.join(sandbox.config.storage.libraryDir, path.basename(t.filePath));
+      fs.writeFileSync(realPath, 'dummy-audio-content');
+      t.filePath = realPath;
+    }
+
     trackRepo = new TrackRepository();
     for (const t of sampleTracks) {
       trackRepo.insert(t);
@@ -116,6 +125,8 @@ describe('Unit Test: Playback Queue & Modes (播放队列与播放模式状态�
   });
 
   it('addToQueue 应当支持插队播放 (next: true) 与追加队尾 (next: false)', () => {
+    const extraFilePath = path.join(sandbox.config.storage.libraryDir, 'extra.flac');
+    fs.writeFileSync(extraFilePath, 'dummy-audio-content');
     const extraTrack: Track = {
       id: 'trk_q_extra',
       title: 'Extra Track',
@@ -126,7 +137,7 @@ describe('Unit Test: Playback Queue & Modes (播放队列与播放模式状态�
       sampleRate: 44100,
       bitDepth: 16,
       channels: 2,
-      filePath: '/music/extra.flac',
+      filePath: extraFilePath,
       fileSize: 1000,
       fileHash: 'hash_extra',
       hasEmbeddedCover: false,

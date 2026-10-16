@@ -26,12 +26,8 @@ export const ToastContainer: React.FC = () => {
               {isWarn && (
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
               )}
-              {isError && (
-                <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-              )}
-              {isSuccess && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              )}
+              {isError && <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />}
+              {isSuccess && <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />}
               {!isWarn && !isError && !isSuccess && (
                 <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />
               )}

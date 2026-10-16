@@ -68,45 +68,7 @@ export class PlaybackRouter {
 
     // 毫秒级物理文件轻量存在性检查 (ISSUE-01: 物理文件丢失防御)
     if (!fs.existsSync(track.filePath)) {
-      this.consecutiveMissingCount += 1;
-      const shouldAutoSkip =
-        this.queue.length > 0 && this.consecutiveMissingCount < this.queue.length;
-
-      logger.warn(
-        {
-          trackId: track.id,
-          title: track.title,
-          filePath: track.filePath,
-          consecutiveMissing: this.consecutiveMissingCount,
-        },
-        '[PlaybackRouter] 目标音频物理文件在磁盘上丢失，拦截播放'
-      );
-
-      broadcastPlaybackMissing({
-        trackId: track.id,
-        title: track.title,
-        filePath: track.filePath,
-        autoSkipped: shouldAutoSkip,
-      });
-
-      if (this.mode === 'direct') {
-        getDirectPlayer().stop();
-        if (shouldAutoSkip) {
-          setTimeout(() => {
-            void this.next();
-          }, 120);
-        } else {
-          logger.warn('[PlaybackRouter] 队列内所有曲目文件均丢失，触发熔断并停止硬件直通');
-          this.stop();
-        }
-      } else {
-        // Web 模式: 清除虚假播放状态，由前端根据音频流 404 或 WS 广播进行跳播
-        this.webState = 'stopped';
-        this.webTimeMs = 0;
-        if (!shouldAutoSkip) {
-          this.stop();
-        }
-      }
+      this.handleMissingTrack(track);
       return;
     }
 
@@ -137,6 +99,51 @@ export class PlaybackRouter {
       });
 
       logger.info({ trackId, offsetMs }, '[PlaybackRouter] 已就绪 Web Audio HTTP Range 流回退模式');
+    }
+  }
+
+  /**
+   * 物理文件丢失防御与熔断处理逻辑
+   */
+  private handleMissingTrack(track: Track): void {
+    this.consecutiveMissingCount += 1;
+    const shouldAutoSkip =
+      this.queue.length > 0 && this.consecutiveMissingCount < this.queue.length;
+
+    logger.warn(
+      {
+        trackId: track.id,
+        title: track.title,
+        filePath: track.filePath,
+        consecutiveMissing: this.consecutiveMissingCount,
+      },
+      '[PlaybackRouter] 目标音频物理文件在磁盘上丢失，拦截播放'
+    );
+
+    broadcastPlaybackMissing({
+      trackId: track.id,
+      title: track.title,
+      filePath: track.filePath,
+      autoSkipped: shouldAutoSkip,
+    });
+
+    if (this.mode === 'direct') {
+      getDirectPlayer().stop();
+      if (shouldAutoSkip) {
+        setTimeout(() => {
+          void this.next();
+        }, 120);
+      } else {
+        logger.warn('[PlaybackRouter] 队列内所有曲目文件均丢失，触发熔断并停止硬件直通');
+        this.stop();
+      }
+    } else {
+      // Web 模式: 清除虚假播放状态，由前端根据音频流 404 或 WS 广播进行跳播
+      this.webState = 'stopped';
+      this.webTimeMs = 0;
+      if (!shouldAutoSkip) {
+        this.stop();
+      }
     }
   }
 
