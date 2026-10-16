@@ -117,8 +117,14 @@ export class PlaybackRouter {
         filePath: track.filePath,
         consecutiveMissing: this.consecutiveMissingCount,
       },
-      '[PlaybackRouter] 目标音频物理文件在磁盘上丢失，拦截播放'
+      '[PlaybackRouter] 目标音频物理文件在磁盘上丢失，拦截播放并标记软缺失'
     );
+
+    // 触发软缺失标记持久化 (ISSUE-03)
+    this.trackRepo.update(track.id, {
+      isMissing: true,
+      missingAt: track.missingAt || Date.now(),
+    });
 
     broadcastPlaybackMissing({
       trackId: track.id,

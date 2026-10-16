@@ -129,17 +129,31 @@ const CardActionButtons: React.FC<CardActionButtonsProps> = ({
               <SvgIcons name="close" size={12} />
             </button>
           )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onMoveToTrash();
-            }}
-            className="w-7 h-7 rounded-lg bg-[var(--bg-subtle)] hover:bg-red-50 text-[var(--text-tertiary)] hover:text-[var(--accent-coral)] flex items-center justify-center transition-colors cursor-pointer shadow-[var(--shadow-xs)]"
-            title="移入回收歌单"
-          >
-            <SvgIcons name="trash" size={12} />
-          </button>
+          {track.isMissing ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPurge();
+              }}
+              className="w-7 h-7 rounded-lg bg-[var(--bg-subtle)] hover:bg-red-50 text-amber-600 hover:text-[var(--accent-coral)] flex items-center justify-center transition-colors cursor-pointer shadow-[var(--shadow-xs)]"
+              title="彻底从曲库注销"
+            >
+              <SvgIcons name="trash" size={12} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMoveToTrash();
+              }}
+              className="w-7 h-7 rounded-lg bg-[var(--bg-subtle)] hover:bg-red-50 text-[var(--text-tertiary)] hover:text-[var(--accent-coral)] flex items-center justify-center transition-colors cursor-pointer shadow-[var(--shadow-xs)]"
+              title="移入回收歌单"
+            >
+              <SvgIcons name="trash" size={12} />
+            </button>
+          )}
         </>
       )}
     </div>
@@ -201,6 +215,8 @@ const TrackCarouselCard: React.FC<TrackCarouselCardProps> = ({
       }}
       transition={springMotion.gentle}
       className={`relative w-64 h-80 rounded-3xl bg-white border border-[var(--border-subtle)] p-5 flex flex-col justify-between cursor-pointer select-none transition-shadow duration-300 ${
+        track.isMissing ? 'opacity-60 grayscale-[35%]' : ''
+      } ${
         isActive
           ? 'shadow-[var(--shadow-hover)] z-10'
           : 'shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-hover)]'
@@ -212,6 +228,15 @@ const TrackCarouselCard: React.FC<TrackCarouselCardProps> = ({
           <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)]">
             #{(index + 1).toString().padStart(2, '0')}
           </span>
+          {track.isMissing && (
+            <span
+              className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-0.5"
+              title={`物理文件失联: ${track.filePath}`}
+            >
+              <SvgIcons name="alert" size={9} />
+              失联
+            </span>
+          )}
           {isHiRes && (
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[var(--bg-elevated)] text-[var(--accent-mint)] border border-[var(--border-subtle)]">
               Hi-Res
@@ -219,11 +244,13 @@ const TrackCarouselCard: React.FC<TrackCarouselCardProps> = ({
           )}
           <span
             className={`w-1.5 h-1.5 rounded-full ${
-              track.healthyStatus === 'healthy' || track.healthyStatus === 'repaired'
-                ? 'bg-[var(--accent-mint)]'
-                : 'bg-[var(--accent-coral)]'
+              track.isMissing
+                ? 'bg-amber-500'
+                : track.healthyStatus === 'healthy' || track.healthyStatus === 'repaired'
+                  ? 'bg-[var(--accent-mint)]'
+                  : 'bg-[var(--accent-coral)]'
             }`}
-            title={`状态: ${track.healthyStatus}`}
+            title={track.isMissing ? '状态: 物理文件失联' : `状态: ${track.healthyStatus}`}
           />
         </div>
 
@@ -326,7 +353,7 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
     restoreTrack,
     purgeTrack,
   } = useLibraryStore();
-  const { navigate } = useUIStore();
+  const { navigate, showToast } = useUIStore();
 
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
@@ -351,12 +378,20 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
     if (index !== activeIndex) {
       setActiveIndex(index);
     } else {
+      if (track.isMissing) {
+        showToast(`《${track.title}》本地物理文件不存在，请检查或放回该文件`, 'warn');
+        return;
+      }
       void playTrack(track, tracks, currentPlaylist?.name);
       navigate('player-stage');
     }
   };
 
   const handlePlayDirectly = (track: Track) => {
+    if (track.isMissing) {
+      showToast(`《${track.title}》本地物理文件不存在，请检查或放回该文件`, 'warn');
+      return;
+    }
     if (currentTrack?.id === track.id) {
       void togglePlayPause();
     } else {

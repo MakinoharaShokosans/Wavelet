@@ -30,6 +30,8 @@ export interface Track {
   lastPlayedAt?: number;
   isFavorite?: boolean;
   isTrashed?: boolean;
+  isMissing?: boolean;
+  missingAt?: number | null;
   createdAt: number;
   updatedAt: number;
 }

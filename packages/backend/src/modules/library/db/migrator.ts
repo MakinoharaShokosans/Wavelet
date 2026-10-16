@@ -156,6 +156,18 @@ const migrations: Migration[] = [
       insertDefaultStmt.run('default_trash', '回收歌单', '已删除待清理或恢复的音乐', now, now);
     },
   },
+  {
+    version: 5,
+    name: '005_soft_missing_tracks',
+    up: (db) => {
+      // 1. 为 tracks 表增加 is_missing 与 missing_at 字段，用于支持物理断链软失效与防灾保护 (ISSUE-03)
+      db.exec(`
+        ALTER TABLE tracks ADD COLUMN is_missing BOOLEAN DEFAULT 0;
+        ALTER TABLE tracks ADD COLUMN missing_at INTEGER;
+        CREATE INDEX IF NOT EXISTS idx_tracks_missing ON tracks(is_missing);
+      `);
+    },
+  },
 ];
 
 /**

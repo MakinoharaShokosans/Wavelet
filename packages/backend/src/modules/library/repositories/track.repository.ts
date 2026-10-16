@@ -29,6 +29,8 @@ interface TrackRow {
   play_count: number | null;
   last_played_at: number | null;
   is_trashed: number | null;
+  is_missing: number | null;
+  missing_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -55,6 +57,8 @@ function mapRowToTrack(row: TrackRow): Track {
     playCount: row.play_count ?? 0,
     lastPlayedAt: row.last_played_at ?? undefined,
     isTrashed: Boolean(row.is_trashed),
+    isMissing: Boolean(row.is_missing),
+    missingAt: row.missing_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -72,11 +76,13 @@ export class TrackRepository {
       INSERT INTO tracks (
         id, title, artist, album, album_artist, duration, bitrate, sample_rate,
         bit_depth, channels, file_path, file_size, file_hash, has_embedded_cover,
-        has_embedded_lyrics, healthy_status, repair_details, play_count, last_played_at, is_trashed, created_at, updated_at
+        has_embedded_lyrics, healthy_status, repair_details, play_count, last_played_at,
+        is_trashed, is_missing, missing_at, created_at, updated_at
       ) VALUES (
         @id, @title, @artist, @album, @album_artist, @duration, @bitrate, @sample_rate,
         @bit_depth, @channels, @file_path, @file_size, @file_hash, @has_embedded_cover,
-        @has_embedded_lyrics, @healthy_status, @repair_details, @play_count, @last_played_at, @is_trashed, @created_at, @updated_at
+        @has_embedded_lyrics, @healthy_status, @repair_details, @play_count, @last_played_at,
+        @is_trashed, @is_missing, @missing_at, @created_at, @updated_at
       )
     `);
 
@@ -101,6 +107,8 @@ export class TrackRepository {
       play_count: track.playCount ?? 0,
       last_played_at: track.lastPlayedAt ?? null,
       is_trashed: track.isTrashed ? 1 : 0,
+      is_missing: track.isMissing ? 1 : 0,
+      missing_at: track.missingAt ?? null,
       created_at: track.createdAt,
       updated_at: track.updatedAt,
     });
@@ -277,6 +285,7 @@ export class TrackRepository {
       ['channels', 'channels'],
       ['healthyStatus', 'healthy_status'],
       ['playCount', 'play_count'],
+      ['missingAt', 'missing_at'],
     ];
 
     for (const [key, col] of directFields) {
@@ -290,6 +299,7 @@ export class TrackRepository {
       ['hasEmbeddedCover', 'has_embedded_cover'],
       ['hasEmbeddedLyrics', 'has_embedded_lyrics'],
       ['isTrashed', 'is_trashed'],
+      ['isMissing', 'is_missing'],
     ];
 
     for (const [key, col] of booleanFields) {
@@ -310,6 +320,18 @@ export class TrackRepository {
   delete(id: string): boolean {
     const result = this.db.prepare('DELETE FROM tracks WHERE id = ?').run(id);
     return result.changes > 0;
+  }
+
+  getMissingTracks(): Track[] {
+    const rows = this.db
+      .prepare('SELECT * FROM tracks WHERE is_missing = 1 ORDER BY updated_at DESC')
+      .all() as TrackRow[];
+    return rows.map(mapRowToTrack);
+  }
+
+  pruneMissingTracks(): number {
+    const result = this.db.prepare('DELETE FROM tracks WHERE is_missing = 1').run();
+    return result.changes;
   }
 
   getAllFilePaths(): { id: string; filePath: string }[] {

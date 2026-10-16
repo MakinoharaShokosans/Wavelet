@@ -156,6 +156,8 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onChange }) =
 interface PlaylistActionsProps {
   playlist: Playlist;
   hasTracks: boolean;
+  hasMissingTracks?: boolean;
+  onPruneMissing?: () => void;
   onPlayAll: () => void;
   onShufflePlayAll: () => void;
   onEditPlaylist: () => void;
@@ -170,6 +172,8 @@ interface PlaylistActionsProps {
 const PlaylistActions: React.FC<PlaylistActionsProps> = ({
   playlist,
   hasTracks,
+  hasMissingTracks,
+  onPruneMissing,
   onPlayAll,
   onShufflePlayAll,
   onEditPlaylist,
@@ -279,6 +283,18 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
         </>
       )}
 
+      {hasMissingTracks && onPruneMissing && (
+        <button
+          type="button"
+          onClick={onPruneMissing}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition-all cursor-pointer shadow-[var(--shadow-xs)]"
+          title="一键彻底清理曲库所有失联曲目"
+        >
+          <SvgIcons name="alert" size={14} />
+          <span>清理失联曲目</span>
+        </button>
+      )}
+
       {isCustom && (
         <>
           <button
@@ -378,9 +394,11 @@ export const PlaylistDetailView: React.FC = () => {
     isLoading,
     deletePlaylist,
     emptyTrash,
+    pruneMissingTracks,
     copyPlaylistCoverFromTrack,
   } = useLibraryStore();
-  const { playlistViewMode, setPlaylistViewMode, navigate, resetBreadcrumbs } = useUIStore();
+  const { playlistViewMode, setPlaylistViewMode, navigate, resetBreadcrumbs, showToast } =
+    useUIStore();
   const { playTrack, setPlayMode } = usePlayerStore();
   const [modalState, setModalState] = useState<{
     isOpen: boolean;
@@ -455,6 +473,18 @@ export const PlaylistDetailView: React.FC = () => {
     }
   };
 
+  const handlePruneMissing = async () => {
+    const missingCount = currentPlaylistTracks.filter((t) => t.isMissing).length;
+    if (
+      window.confirm(
+        `确定要彻底清理曲库中所有失联曲目吗？（当前歌单含 ${missingCount} 首）\n该操作将永久物理抹除失联曲目的数据库条目与歌单关联。`
+      )
+    ) {
+      const purged = await pruneMissingTracks();
+      showToast(`已彻底清理 ${purged} 首失联曲目`, 'info');
+    }
+  };
+
   const displayTrackCount =
     currentPlaylistTracks.length > 0 ? currentPlaylistTracks.length : currentPlaylist.trackCount;
   const subItemCount = playlists.filter((p) => p.parentId === currentPlaylist.id).length;
@@ -473,6 +503,8 @@ export const PlaylistDetailView: React.FC = () => {
         <PlaylistActions
           playlist={currentPlaylist}
           hasTracks={currentPlaylistTracks.length > 0}
+          hasMissingTracks={currentPlaylistTracks.some((t) => t.isMissing)}
+          onPruneMissing={handlePruneMissing}
           onPlayAll={handlePlayAll}
           onShufflePlayAll={handleShufflePlayAll}
           onEditPlaylist={() => handleOpenEditModal(currentPlaylist)}

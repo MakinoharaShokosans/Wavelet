@@ -244,10 +244,14 @@ function resolveTrackMigration(
     trackRepo.update(migratedTrack.id, {
       filePath,
       fileSize: stat.size,
+      isMissing: false,
+      missingAt: null,
       updatedAt: Date.now(),
     });
     migratedTrack.filePath = filePath;
     migratedTrack.fileSize = stat.size;
+    migratedTrack.isMissing = false;
+    migratedTrack.missingAt = undefined;
 
     missingTracksByHash.delete(fileHash);
     missingTracksById.delete(migratedTrack.id);
@@ -269,10 +273,14 @@ function resolveTrackMigration(
     trackRepo.update(existingByHash.id, {
       filePath,
       fileSize: stat.size,
+      isMissing: false,
+      missingAt: null,
       updatedAt: Date.now(),
     });
     existingByHash.filePath = filePath;
     existingByHash.fileSize = stat.size;
+    existingByHash.isMissing = false;
+    existingByHash.missingAt = undefined;
     return existingByHash;
   }
 
@@ -290,6 +298,8 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
   scanned: number;
   imported: number;
   migrated: number;
+  missing: number;
+  restored: number;
   pruned: number;
   tracks: Track[];
 }> {
@@ -316,7 +326,7 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
     missingTracksById,
     prunedCount: initialPruned,
   } = partitionDbTracks(allDbTracks, targetDir, diskPathsSet, trackRepo);
-  let prunedCount = initialPruned;
+  const prunedCount = initialPruned;
 
   if (missingTracksById.size > 0) {
     logger.info(
@@ -327,6 +337,7 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
   // 3. 遍历磁盘文件：快径直通 vs 哈希对齐保活 vs 全新入库
   const importedTracks: Track[] = [];
   let migratedCount = 0;
+  let restoredCount = 0;
   const taskId = `sync_musics_${Date.now()}`;
 
   for (let i = 0; i < diskAudioFiles.length; i++) {
@@ -342,6 +353,19 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
     // 快径：原路径未变更
     const existing = existingPathMap.get(filePath);
     if (existing) {
+      if (existing.isMissing) {
+        trackRepo.update(existing.id, {
+          isMissing: false,
+          missingAt: null,
+        });
+        existing.isMissing = false;
+        existing.missingAt = undefined;
+        restoredCount++;
+        logger.info(
+          { trackId: existing.id, title: existing.title, filePath },
+          '[曲库同步] 物理文件已重新归位，自动解除失联状态 (is_missing=0)'
+        );
+      }
       importedTracks.push(existing);
       continue;
     }
@@ -354,6 +378,9 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
       trackRepo
     );
     if (migrated) {
+      if (migrated.isMissing) {
+        restoredCount++;
+      }
       importedTracks.push(migrated);
       migratedCount++;
       continue;
@@ -366,24 +393,34 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
     }
   }
 
-  // 4. 收尾清理：经全盘扫描后仍未能寻回的孤立条目，最终执行注销
+  // 4. 收尾软失效处理：经全盘扫描后仍未能寻回的孤立条目，标记为软缺失 (ISSUE-03 方案 A: 永不自动物理删除)
+  let markedMissingCount = 0;
   for (const orphan of missingTracksById.values()) {
-    trackRepo.delete(orphan.id);
-    prunedCount++;
-    logger.info(
-      { trackId: orphan.id, title: orphan.title, filePath: orphan.filePath },
-      '[曲库同步] 物理文件已彻底在磁盘移除且无匹配新文件，从曲库安全注销'
-    );
+    if (!orphan.isMissing) {
+      trackRepo.update(orphan.id, {
+        isMissing: true,
+        missingAt: orphan.missingAt || Date.now(),
+      });
+      orphan.isMissing = true;
+      orphan.missingAt = orphan.missingAt || Date.now();
+      markedMissingCount++;
+      logger.info(
+        { trackId: orphan.id, title: orphan.title, filePath: orphan.filePath },
+        '[曲库同步] 物理文件已在磁盘移除且未匹配新文件，标记为软缺失 (is_missing=1)'
+      );
+    }
   }
 
   logger.info(
-    `[曲库同步] 扫描完成: 共检测到 ${diskAudioFiles.length} 首物理文件，入库/保活 ${importedTracks.length} 首 (其中路径迁移保活 ${migratedCount} 首)，注销物理失联 ${prunedCount} 首`
+    `[曲库同步] 扫描完成: 共检测到 ${diskAudioFiles.length} 首物理文件，在席/保活 ${importedTracks.length} 首 (迁移 ${migratedCount} 首, 自动复活 ${restoredCount} 首)，标记软缺失 ${markedMissingCount} 首`
   );
 
   return {
     scanned: diskAudioFiles.length,
     imported: importedTracks.length,
     migrated: migratedCount,
+    missing: markedMissingCount,
+    restored: restoredCount,
     pruned: prunedCount,
     tracks: importedTracks,
   };

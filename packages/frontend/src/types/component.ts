@@ -37,6 +37,7 @@ export type SvgIconName =
   | 'restore'
   | 'image'
   | 'chevron-down'
+  | 'alert'
   | 'check';
 
 export interface SvgIconProps {

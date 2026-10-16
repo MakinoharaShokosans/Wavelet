@@ -27,7 +27,11 @@ export class IntegrityGuard {
 
     for (const { id, filePath } of allTracks) {
       if (!fs.existsSync(filePath)) {
-        this.trackRepo.update(id, { healthyStatus: 'missing' });
+        this.trackRepo.update(id, {
+          healthyStatus: 'missing',
+          isMissing: true,
+          missingAt: Date.now(),
+        });
         missingTrackIds.push(id);
       }
     }
@@ -84,6 +88,26 @@ export class IntegrityGuard {
 
     // 3. 删除数据库记录 (SQLite 级联外键自动清除 playlist_tracks 与 lyrics)
     return this.trackRepo.delete(trackId);
+  }
+
+  /**
+   * 批量彻底清除所有失联软缺失曲目 (ISSUE-03 方案 A: 由用户主动触发)
+   */
+  purgeMissingTracks(): { purgedCount: number; trackIds: string[] } {
+    const missingTracks = this.trackRepo.getMissingTracks();
+    const trackIds: string[] = [];
+    let purgedCount = 0;
+
+    for (const track of missingTracks) {
+      if (this.purgeTrackCompletely(track.id)) {
+        purgedCount++;
+        trackIds.push(track.id);
+      }
+    }
+
+    logger.info({ purgedCount, trackIds }, '[IntegrityGuard] 用户主动批量清理失联曲目完成');
+
+    return { purgedCount, trackIds };
   }
 
   /**

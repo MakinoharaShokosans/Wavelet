@@ -100,6 +100,21 @@ export const trackService = {
   },
 
   /**
+   * 批量彻底清理所有失联曲目 (ISSUE-03 方案 A: 用户主动一键清理)
+   */
+  async pruneMissingTracks(): Promise<{
+    success: boolean;
+    purgedCount: number;
+    trackIds: string[];
+  }> {
+    return apiClient.post<{
+      success: boolean;
+      purgedCount: number;
+      trackIds: string[];
+    }>('/api/tracks/prune-missing');
+  },
+
+  /**
    * 上传或替换曲目封面
    */
   async updateCover(

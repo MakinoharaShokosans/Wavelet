@@ -11,6 +11,7 @@ import PlaylistDetailView from './components/playlist/PlaylistDetailView.js';
 import SplashView from './components/splash/SplashView.js';
 import ZeroStateView from './components/splash/ZeroStateView.js';
 import { useWaveletWs } from './hooks/useWaveletWs.js';
+import { useLibraryStore } from './stores/library.store.js';
 import { usePlayerStore } from './stores/player.store.js';
 import { useUIStore } from './stores/ui.store.js';
 import type { Track } from './types/index.js';
@@ -35,6 +36,9 @@ export default function App(): React.JSX.Element {
         ? `《${songTitle}》物理文件已在磁盘丢失，已自动跳过`
         : `《${songTitle}》物理文件已在磁盘丢失，已停止播放`;
       showToast(msg, 'warn');
+      if (missing.trackId) {
+        useLibraryStore.getState().markTrackMissing(missing.trackId);
+      }
     },
     onQueue: (queueData) => {
       if (Array.isArray(queueData.queue)) {

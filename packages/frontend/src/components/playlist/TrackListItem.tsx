@@ -3,6 +3,7 @@ import type React from 'react';
 import { useState } from 'react';
 import { useLibraryStore } from '../../stores/library.store.js';
 import { usePlayerStore } from '../../stores/player.store.js';
+import { useUIStore } from '../../stores/ui.store.js';
 import { FloatingCard } from '../common/FloatingCard.js';
 import { SvgIcons } from '../common/SvgIcons.js';
 import { TrackEditModal } from '../common/TrackEditModal.js';
@@ -35,6 +36,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
     restoreTrack,
     purgeTrack,
   } = useLibraryStore();
+  const { showToast } = useUIStore();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -45,6 +47,10 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (track.isMissing) {
+      showToast(`《${track.title}》本地物理文件不存在，请检查或放回该文件`, 'warn');
+      return;
+    }
     void playTrack(track, allTracks, currentPlaylist?.name);
   };
 
@@ -95,6 +101,8 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
     <>
       <div
         className={`group relative flex items-center justify-between px-4 py-3 rounded-2xl select-none transition-all duration-150 ${
+          track.isMissing ? 'opacity-60 grayscale-[35%]' : ''
+        } ${
           isCurrent
             ? 'bg-white shadow-[var(--shadow-card)] font-medium text-[var(--text-primary)]'
             : 'hover:bg-white hover:shadow-[var(--shadow-xs)] text-[var(--text-secondary)]'
@@ -121,6 +129,15 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
               <span className="text-sm font-semibold truncate text-[var(--text-primary)]">
                 {track.title}
               </span>
+              {track.isMissing && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 flex items-center gap-1"
+                  title={`物理文件失联: ${track.filePath}`}
+                >
+                  <SvgIcons name="alert" size={10} />
+                  失联
+                </span>
+              )}
               {isHiRes && (
                 <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[var(--bg-elevated)] text-[var(--accent-mint)] border border-[var(--border-subtle)]">
                   {Math.round(track.sampleRate / 1000)}k/{track.bitDepth}b
@@ -231,18 +248,33 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
                   />
                 )}
 
-                <FloatingCard
-                  trigger={
-                    <button
-                      type="button"
-                      onClick={handleMoveToTrash}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-[var(--text-tertiary)] hover:text-[var(--accent-coral)] cursor-pointer"
-                    >
-                      <SvgIcons name="trash" size={14} />
-                    </button>
-                  }
-                  content="移入回收歌单"
-                />
+                {track.isMissing ? (
+                  <FloatingCard
+                    trigger={
+                      <button
+                        type="button"
+                        onClick={handlePurge}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-amber-600 hover:text-[var(--accent-coral)] cursor-pointer"
+                      >
+                        <SvgIcons name="trash" size={14} />
+                      </button>
+                    }
+                    content="彻底从曲库注销"
+                  />
+                ) : (
+                  <FloatingCard
+                    trigger={
+                      <button
+                        type="button"
+                        onClick={handleMoveToTrash}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors text-[var(--text-tertiary)] hover:text-[var(--accent-coral)] cursor-pointer"
+                      >
+                        <SvgIcons name="trash" size={14} />
+                      </button>
+                    }
+                    content="移入回收歌单"
+                  />
+                )}
               </>
             )}
           </div>
@@ -253,11 +285,13 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
           </span>
           <span
             className={`w-1.5 h-1.5 rounded-full ${
-              track.healthyStatus === 'healthy' || track.healthyStatus === 'repaired'
-                ? 'bg-[var(--accent-mint)]'
-                : 'bg-[var(--accent-coral)]'
+              track.isMissing
+                ? 'bg-amber-500'
+                : track.healthyStatus === 'healthy' || track.healthyStatus === 'repaired'
+                  ? 'bg-[var(--accent-mint)]'
+                  : 'bg-[var(--accent-coral)]'
             }`}
-            title={`状态: ${track.healthyStatus}`}
+            title={track.isMissing ? '状态: 物理文件失联' : `状态: ${track.healthyStatus}`}
           />
         </div>
       </div>

@@ -97,6 +97,12 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     return { success: true, track: trackRepo.findById(id) };
   });
 
+  // 5.5. 批量彻底清理所有失联软缺失曲目 (ISSUE-03 方案 A: 用户主动一键清理)
+  fastify.post('/api/tracks/prune-missing', async () => {
+    const result = integrityGuard.purgeMissingTracks();
+    return { success: true, ...result };
+  });
+
   // 6. 获取曲目内嵌封面
   fastify.get('/api/tracks/:id/cover', async (request, reply) => {
     const { id } = request.params as { id: string };

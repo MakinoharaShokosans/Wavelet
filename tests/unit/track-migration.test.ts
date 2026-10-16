@@ -176,13 +176,14 @@ describe('Unit Test: Track Move & Rename Tracking (ISSUE-02: 曲目移动与重�
 
     // A 与 B 应成功指纹识别迁移 (migrated >= 2)
     expect(batchSync.migrated).toBeGreaterThanOrEqual(2);
-    // C 应被判定为真正失联注销 (pruned >= 1)
-    expect(batchSync.pruned).toBeGreaterThanOrEqual(1);
+    // C 应被判定为软缺失 (missing >= 1, pruned == 0 遵循 ISSUE-03 方案 A)
+    expect(batchSync.missing).toBeGreaterThanOrEqual(1);
+    expect(batchSync.pruned).toBe(0);
 
     // 4. 验证数据库状态
     expect(trackRepo.findById(trackA.id)?.filePath).toBe(pathARenamed);
     expect(trackRepo.findById(trackB.id)?.filePath).toBe(pathBMoved);
-    expect(trackRepo.findById(trackC.id)).toBeNull();
+    expect(trackRepo.findById(trackC.id)?.isMissing).toBe(true);
   });
 
   it('场景 4：零哈希快径 (Zero-Hash Fast Path) 幂等性验证', async () => {

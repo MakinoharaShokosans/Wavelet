@@ -33,6 +33,8 @@ export interface LibraryState {
   trashTrack: (trackId: string) => Promise<void>;
   restoreTrack: (trackId: string) => Promise<void>;
   purgeTrack: (trackId: string) => Promise<void>;
+  pruneMissingTracks: () => Promise<number>;
+  markTrackMissing: (trackId: string) => void;
   emptyTrash: () => Promise<void>;
   updateTrack: (
     id: string,
@@ -234,6 +236,27 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ currentPlaylistTracks: tracks });
     }
     await get().refreshStats();
+  },
+
+  markTrackMissing: (trackId: string) => {
+    set((state) => ({
+      currentPlaylistTracks: state.currentPlaylistTracks.map((t) =>
+        t.id === trackId ? { ...t, isMissing: true, missingAt: t.missingAt || Date.now() } : t
+      ),
+    }));
+  },
+
+  pruneMissingTracks: async () => {
+    const res = await trackService.pruneMissingTracks();
+    await get().fetchPlaylists();
+    await get().fetchPlaylistTree();
+    const curr = get().currentPlaylist;
+    if (curr) {
+      const tracks = await playlistService.getPlaylistTracks(curr.id);
+      set({ currentPlaylistTracks: tracks });
+    }
+    await get().refreshStats();
+    return res.purgedCount;
   },
 
   emptyTrash: async () => {
