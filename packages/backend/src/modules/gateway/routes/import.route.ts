@@ -23,11 +23,18 @@ export const importRoute: FastifyPluginAsync = async (fastify) => {
   });
 
   // 2. 原地一键同步工程根目录 musics/ 专属曲库
-  fastify.post('/api/import/musics', async () => {
+  fastify.post('/api/import/musics', async (request) => {
+    const body = (request.body as { force?: boolean } | undefined) || {};
     const config = getConfig();
-    const result = await syncMusicsDirectory(config.storage.libraryDir);
+    const result = await syncMusicsDirectory(config.storage.libraryDir, {
+      force: body.force,
+    });
     return {
-      success: true,
+      success: !result.circuitBreakerTriggered,
+      circuitBreakerTriggered: !!result.circuitBreakerTriggered,
+      message: result.circuitBreakerTriggered
+        ? '扫描目录为空但数据库存量曲目 > 0，已触发防灾熔断保护，未作任何修改'
+        : undefined,
       libraryDir: config.storage.libraryDir,
       totalScanned: result.scanned,
       importedCount: result.imported,

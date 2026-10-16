@@ -41,13 +41,18 @@ describe('Unit Test: Soft Missing & Auto-Revival (ISSUE-03: 软缺失标记与�
   });
 
   it('场景 1：临时挪走物理文件触发软缺失标记 (永不硬删除，保留歌单与红心)', async () => {
-    // 1. 拷贝物理音频至曲库
+    // 1. 拷贝物理音频至曲库 (准备两首歌曲，其中一首用于测试挪走失联，另一首常驻)
     const initialFlac = path.join(sandbox.config.storage.libraryDir, '01.soft_missing_demo.flac');
     fs.copyFileSync(TEST_AUDIO_PATH, initialFlac);
+    const anchorFlac = path.join(sandbox.config.storage.libraryDir, '00.anchor_track.flac');
+    fs.writeFileSync(
+      anchorFlac,
+      Buffer.concat([fs.readFileSync(TEST_AUDIO_PATH), Buffer.from('anchor_track_bytes')])
+    );
 
     // 2. 初始扫描入库
     const initialSync = await syncMusicsDirectory(sandbox.config.storage.libraryDir);
-    expect(initialSync.imported).toBeGreaterThanOrEqual(1);
+    expect(initialSync.imported).toBe(2);
 
     const originalTrack = trackRepo.findByPath(initialFlac);
     expect(originalTrack).not.toBeNull();

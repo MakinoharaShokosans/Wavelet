@@ -292,17 +292,27 @@ function resolveTrackMigration(
  * 1. 递归检索 musics/ 下所有音频并建立磁盘路径集合
  * 2. 提取失联曲目候选池，暂缓删除以备指纹追踪 (ISSUE-02)
  * 3. 采用零哈希快径直通在席曲目；对新路径文件计算哈希对齐迁移曲目，保活歌单、红心与播放统计
- * 4. 仅注销经全盘比对后仍未能寻回的历史孤立曲目
+ * 4. 0 文件防空门熔断保护 (ISSUE-04)
  */
-export async function syncMusicsDirectory(dirPath?: string): Promise<{
+export interface SyncMusicsResult {
   scanned: number;
   imported: number;
   migrated: number;
   missing: number;
   restored: number;
   pruned: number;
+  circuitBreakerTriggered?: boolean;
   tracks: Track[];
-}> {
+}
+
+export interface SyncMusicsOptions {
+  force?: boolean;
+}
+
+export async function syncMusicsDirectory(
+  dirPath?: string,
+  options?: SyncMusicsOptions
+): Promise<SyncMusicsResult> {
   const config = getConfig();
   const targetDir = dirPath ? resolveHome(dirPath) : config.storage.libraryDir;
   const trackRepo = new TrackRepository();
@@ -318,8 +328,30 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
   const diskAudioFiles = findAudioFilesRecursively(targetDir);
   const diskPathsSet = new Set(diskAudioFiles);
 
-  // 2. 探查数据库，划分在席文件与失联候选池
+  // 2. 探查数据库存量
   const allDbTracks = trackRepo.getAllTracks(true);
+  const tracksInTargetDir = allDbTracks.filter((t) => t.filePath.startsWith(targetDir));
+
+  // 防空门保底 (ISSUE-04 熔断保护): 若扫描目录结果为空 (0个音频)，但数据库中已存在该目录的存量曲目，
+  // 极可能是目录被误重命名、临时移走或清空。为防止全库误标记为失联，立即熔断终止本次同步。
+  if (!options?.force && diskAudioFiles.length === 0 && tracksInTargetDir.length > 0) {
+    logger.warn(
+      { targetDir, existingTrackCount: tracksInTargetDir.length },
+      '[曲库同步] 熔断保护触发：扫描目录为空但数据库存量曲目 > 0，疑似目录被误移走或临时清空，放弃本次同步以保护曲库！'
+    );
+    return {
+      scanned: 0,
+      imported: 0,
+      migrated: 0,
+      missing: 0,
+      restored: 0,
+      pruned: 0,
+      circuitBreakerTriggered: true,
+      tracks: [],
+    };
+  }
+
+  // 3. 划分在席文件与失联候选池
   const {
     existingPathMap,
     missingTracksByHash,
