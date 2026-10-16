@@ -26,12 +26,94 @@ export const AUDIO_EXTENSIONS = new Set([
   '.webm',
 ]);
 
+/**
+ * 常见未完成下载/临时文件后缀与特征前缀过滤 (ISSUE-05)
+ */
+export function isIncompleteOrTempFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  // 1. 点文件、隐藏文件、临时波浪线文件、macOS 资源衍生文件
+  if (
+    lower.startsWith('.') ||
+    lower.startsWith('~') ||
+    lower.startsWith('._') ||
+    lower.endsWith('~')
+  ) {
+    return true;
+  }
+  // 2. 常见下载器/传输器未完成后缀
+  const tempExtensions = [
+    '.part',
+    '.crdownload',
+    '.downloading',
+    '.uploading',
+    '.incomplete',
+    '.tmp',
+    '.temp',
+    '.aria2',
+    '.baiduyun.downloading',
+    '.filepart',
+  ];
+  if (tempExtensions.some((ext) => lower.endsWith(ext))) {
+    return true;
+  }
+  // 3. 复合临时名 (例如 song.flac.tmp, song.mp3.part, 包含 .crdownload. 的)
+  if (
+    lower.includes('.part.') ||
+    lower.includes('.tmp.') ||
+    lower.includes('.crdownload.') ||
+    lower.includes('.downloading.') ||
+    lower.includes('.incomplete.')
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 检查文件是否处于活跃写入或未完成状态 (ISSUE-05: 尺寸稳定性巡检)
+ * 若修改时间在 recentWindowMs 内，等待 intervalMs 并复查其尺寸与修改时间；
+ * 若尺寸变化、时间戳递增，或为刚创建的 0 字节文件，判定为写入未完成。
+ */
+export async function isFileWritingInProgress(
+  filePath: string,
+  options?: { recentWindowMs?: number; intervalMs?: number }
+): Promise<boolean> {
+  const recentWindowMs = options?.recentWindowMs ?? 1500;
+  const intervalMs = options?.intervalMs ?? 150;
+
+  try {
+    const initialStat = fs.statSync(filePath);
+    const now = Date.now();
+
+    // 刚创建不久的 0 字节文件直接判定为处于写入准备中
+    if (initialStat.size === 0 && now - initialStat.mtimeMs < 30000) {
+      return true;
+    }
+
+    // 若最后修改时间在设定窗口之内 (默认 1.5 秒)，说明文件极近发生过写入
+    if (now - initialStat.mtimeMs < recentWindowMs) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      const secondStat = fs.statSync(filePath);
+      if (secondStat.size !== initialStat.size || secondStat.mtimeMs !== initialStat.mtimeMs) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    // 若读取 stat 报错 (例如文件被独占写锁定或在此期间被重命名)，视为处于不安全写入状态
+    return true;
+  }
+}
+
 export function findAudioFilesRecursively(dirPath: string): string[] {
   const results: string[] = [];
   function walk(current: string) {
     if (!fs.existsSync(current)) return;
     const entries = fs.readdirSync(current, { withFileTypes: true });
     for (const entry of entries) {
+      if (isIncompleteOrTempFile(entry.name)) {
+        continue;
+      }
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
         walk(fullPath);
@@ -68,6 +150,12 @@ export async function processSingleAudioFile(
   taskId: string
 ): Promise<{ track?: Track; error?: string }> {
   try {
+    // 0. 防误伤巡检 (ISSUE-05): 若新物理文件处于写入/拷贝中，暂缓入库
+    if (await isFileWritingInProgress(filePath)) {
+      logger.info({ filePath }, '[曲库同步] 音频文件正在写入或拷贝中，暂缓入库');
+      return { error: '音频文件正在写入或拷贝中，暂缓入库' };
+    }
+
     // 1. 体检阶段
     broadcastTaskProgress({
       taskId,
@@ -399,6 +487,15 @@ export async function syncMusicsDirectory(
         );
       }
       importedTracks.push(existing);
+      continue;
+    }
+
+    // 防误伤巡检 (ISSUE-05): 对未建库新文件/潜在迁移文件，若正处于写入或拷贝中，暂缓入库
+    if (await isFileWritingInProgress(filePath)) {
+      logger.info(
+        { filePath },
+        '[曲库同步] 检测到音频文件正在写入/拷贝中 (尺寸或时间戳变动)，暂缓入库'
+      );
       continue;
     }
 
