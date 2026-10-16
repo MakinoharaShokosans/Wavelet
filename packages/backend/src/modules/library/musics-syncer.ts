@@ -113,7 +113,18 @@ export async function processSingleAudioFile(
     // 检查曲库中是否已存在该曲目 (若哈希或文件路径已存在则安全复用，保证幂等)
     const existingTrack = trackRepo.findByHash(fileHash) || trackRepo.findByPath(filePath);
     if (existingTrack) {
-      linkTrackToPlaylists(playlistRepo, existingTrack.id);
+      if (existingTrack.filePath !== filePath) {
+        trackRepo.update(existingTrack.id, {
+          filePath,
+          fileSize: stat.size,
+        });
+        existingTrack.filePath = filePath;
+        existingTrack.fileSize = stat.size;
+        logger.info(
+          { trackId: existingTrack.id, oldPath: existingTrack.filePath, newPath: filePath },
+          '[曲库同步] 追踪到曲目路径迁移，已更新物理存储位置'
+        );
+      }
       return { track: existingTrack };
     }
 
@@ -180,14 +191,106 @@ export async function processSingleAudioFile(
   }
 }
 
+interface MissingPool {
+  existingPathMap: Map<string, Track>;
+  missingTracksByHash: Map<string, Track>;
+  missingTracksById: Map<string, Track>;
+  prunedCount: number;
+}
+
+/**
+ * 探查曲库现状：划分在席物理曲目与失联待挽救候选池
+ */
+function partitionDbTracks(
+  allDbTracks: Track[],
+  targetDir: string,
+  diskPathsSet: Set<string>,
+  trackRepo: TrackRepository
+): MissingPool {
+  const existingPathMap = new Map<string, Track>();
+  const missingTracksByHash = new Map<string, Track>();
+  const missingTracksById = new Map<string, Track>();
+  let prunedCount = 0;
+
+  for (const t of allDbTracks) {
+    if (!t.filePath.startsWith(targetDir)) {
+      trackRepo.delete(t.id);
+      prunedCount++;
+    } else if (diskPathsSet.has(t.filePath)) {
+      existingPathMap.set(t.filePath, t);
+    } else {
+      missingTracksByHash.set(t.fileHash, t);
+      missingTracksById.set(t.id, t);
+    }
+  }
+
+  return { existingPathMap, missingTracksByHash, missingTracksById, prunedCount };
+}
+
+/**
+ * 尝试通过 SHA-256 哈希寻回重命名或挪入新目录的曲目 (ISSUE-02)
+ */
+function resolveTrackMigration(
+  filePath: string,
+  missingTracksByHash: Map<string, Track>,
+  missingTracksById: Map<string, Track>,
+  trackRepo: TrackRepository
+): Track | null {
+  const stat = fs.statSync(filePath);
+  const fileHash = computeFileHash(filePath);
+
+  const migratedTrack = missingTracksByHash.get(fileHash);
+  if (migratedTrack) {
+    trackRepo.update(migratedTrack.id, {
+      filePath,
+      fileSize: stat.size,
+      updatedAt: Date.now(),
+    });
+    migratedTrack.filePath = filePath;
+    migratedTrack.fileSize = stat.size;
+
+    missingTracksByHash.delete(fileHash);
+    missingTracksById.delete(migratedTrack.id);
+
+    logger.info(
+      {
+        trackId: migratedTrack.id,
+        title: migratedTrack.title,
+        oldPath: migratedTrack.filePath,
+        newPath: filePath,
+      },
+      '[曲库同步] 成功识别曲目移动/重命名 (Hash Matching)，保活歌单与红心关联'
+    );
+    return migratedTrack;
+  }
+
+  const existingByHash = trackRepo.findByHash(fileHash);
+  if (existingByHash && !fs.existsSync(existingByHash.filePath)) {
+    trackRepo.update(existingByHash.id, {
+      filePath,
+      fileSize: stat.size,
+      updatedAt: Date.now(),
+    });
+    existingByHash.filePath = filePath;
+    existingByHash.fileSize = stat.size;
+    return existingByHash;
+  }
+
+  return null;
+}
+
 /**
  * 严格锁定 musics/ 目录并执行就地增量同步：
- * 1. 移除非当前 musics/ 目录或磁盘已删除的历史条目，维持纯净单一来源
- * 2. 扫描 musics/ 下所有音频并建立索引
+ * 1. 递归检索 musics/ 下所有音频并建立磁盘路径集合
+ * 2. 提取失联曲目候选池，暂缓删除以备指纹追踪 (ISSUE-02)
+ * 3. 采用零哈希快径直通在席曲目；对新路径文件计算哈希对齐迁移曲目，保活歌单、红心与播放统计
+ * 4. 仅注销经全盘比对后仍未能寻回的历史孤立曲目
  */
 export async function syncMusicsDirectory(dirPath?: string): Promise<{
   scanned: number;
   imported: number;
+  migrated: number;
+  pruned: number;
   tracks: Track[];
 }> {
   const config = getConfig();
@@ -201,47 +304,87 @@ export async function syncMusicsDirectory(dirPath?: string): Promise<{
 
   logger.info({ targetDir }, `[曲库同步] 正在扫描 musics 物理目录: ${targetDir}`);
 
-  // 1. 严格作用域控制：仅识别 targetDir (musics/) 内的音乐
-  // 清理数据库中所有不在 targetDir 范围内的历史曲目，或磁盘上已被删除的曲目
-  const allFiles = trackRepo.getAllFilePaths();
-  let prunedCount = 0;
-  for (const t of allFiles) {
-    if (!t.filePath.startsWith(targetDir) || !fs.existsSync(t.filePath)) {
-      trackRepo.delete(t.id);
-      prunedCount++;
-    }
-  }
-  if (prunedCount > 0) {
-    logger.info(`[曲库同步] 已隔离并移除 ${prunedCount} 首非 musics 目录的历史孤立曲目`);
+  // 1. 递归检索当前物理磁盘上的所有音频文件
+  const diskAudioFiles = findAudioFilesRecursively(targetDir);
+  const diskPathsSet = new Set(diskAudioFiles);
+
+  // 2. 探查数据库，划分在席文件与失联候选池
+  const allDbTracks = trackRepo.getAllTracks(true);
+  const {
+    existingPathMap,
+    missingTracksByHash,
+    missingTracksById,
+    prunedCount: initialPruned,
+  } = partitionDbTracks(allDbTracks, targetDir, diskPathsSet, trackRepo);
+  let prunedCount = initialPruned;
+
+  if (missingTracksById.size > 0) {
+    logger.info(
+      `[曲库同步] 检测到 ${missingTracksById.size} 首曲目原路径失联，进入指纹比对保活检索...`
+    );
   }
 
-  // 2. 递归检索当前 musics 目录下的所有音频
-  const audioFiles = findAudioFilesRecursively(targetDir);
+  // 3. 遍历磁盘文件：快径直通 vs 哈希对齐保活 vs 全新入库
   const importedTracks: Track[] = [];
+  let migratedCount = 0;
   const taskId = `sync_musics_${Date.now()}`;
 
-  for (let i = 0; i < audioFiles.length; i++) {
-    const filePath = audioFiles[i];
+  for (let i = 0; i < diskAudioFiles.length; i++) {
+    const filePath = diskAudioFiles[i];
+
     broadcastTaskProgress({
       taskId,
       stage: 'directory_scanning',
-      percent: Math.round(((i + 1) / (audioFiles.length || 1)) * 100),
-      message: `正在索引 (${i + 1}/${audioFiles.length}): ${path.basename(filePath)}`,
+      percent: Math.round(((i + 1) / (diskAudioFiles.length || 1)) * 100),
+      message: `正在索引 (${i + 1}/${diskAudioFiles.length}): ${path.basename(filePath)}`,
     });
 
+    // 快径：原路径未变更
+    const existing = existingPathMap.get(filePath);
+    if (existing) {
+      importedTracks.push(existing);
+      continue;
+    }
+
+    // 尝试寻回重命名或路径迁移
+    const migrated = resolveTrackMigration(
+      filePath,
+      missingTracksByHash,
+      missingTracksById,
+      trackRepo
+    );
+    if (migrated) {
+      importedTracks.push(migrated);
+      migratedCount++;
+      continue;
+    }
+
+    // 确认系全新曲目，走标准化诊断与入库流程
     const res = await processSingleAudioFile(filePath, trackRepo, playlistRepo, `${taskId}_${i}`);
     if (res.track) {
       importedTracks.push(res.track);
     }
   }
 
+  // 4. 收尾清理：经全盘扫描后仍未能寻回的孤立条目，最终执行注销
+  for (const orphan of missingTracksById.values()) {
+    trackRepo.delete(orphan.id);
+    prunedCount++;
+    logger.info(
+      { trackId: orphan.id, title: orphan.title, filePath: orphan.filePath },
+      '[曲库同步] 物理文件已彻底在磁盘移除且无匹配新文件，从曲库安全注销'
+    );
+  }
+
   logger.info(
-    `[曲库同步] 扫描完成: 共检测到 ${audioFiles.length} 首音频，本次成功增量入库 ${importedTracks.length} 首`
+    `[曲库同步] 扫描完成: 共检测到 ${diskAudioFiles.length} 首物理文件，入库/保活 ${importedTracks.length} 首 (其中路径迁移保活 ${migratedCount} 首)，注销物理失联 ${prunedCount} 首`
   );
 
   return {
-    scanned: audioFiles.length,
+    scanned: diskAudioFiles.length,
     imported: importedTracks.length,
+    migrated: migratedCount,
+    pruned: prunedCount,
     tracks: importedTracks,
   };
 }

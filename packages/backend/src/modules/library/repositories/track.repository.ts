@@ -262,37 +262,41 @@ export class TrackRepository {
     const setClauses: string[] = [];
     const params: Record<string, unknown> = { id, updated_at: Date.now() };
 
-    if (updates.title !== undefined) {
-      setClauses.push('title = @title');
-      params.title = updates.title;
+    const directFields: Array<[keyof Track, string]> = [
+      ['title', 'title'],
+      ['artist', 'artist'],
+      ['album', 'album'],
+      ['albumArtist', 'album_artist'],
+      ['filePath', 'file_path'],
+      ['fileSize', 'file_size'],
+      ['fileHash', 'file_hash'],
+      ['duration', 'duration'],
+      ['bitrate', 'bitrate'],
+      ['sampleRate', 'sample_rate'],
+      ['bitDepth', 'bit_depth'],
+      ['channels', 'channels'],
+      ['healthyStatus', 'healthy_status'],
+      ['playCount', 'play_count'],
+    ];
+
+    for (const [key, col] of directFields) {
+      if (updates[key] !== undefined) {
+        setClauses.push(`${col} = @${col}`);
+        params[col] = updates[key];
+      }
     }
-    if (updates.artist !== undefined) {
-      setClauses.push('artist = @artist');
-      params.artist = updates.artist;
-    }
-    if (updates.album !== undefined) {
-      setClauses.push('album = @album');
-      params.album = updates.album;
-    }
-    if (updates.albumArtist !== undefined) {
-      setClauses.push('album_artist = @album_artist');
-      params.album_artist = updates.albumArtist;
-    }
-    if (updates.healthyStatus !== undefined) {
-      setClauses.push('healthy_status = @healthy_status');
-      params.healthy_status = updates.healthyStatus;
-    }
-    if (updates.hasEmbeddedCover !== undefined) {
-      setClauses.push('has_embedded_cover = @has_embedded_cover');
-      params.has_embedded_cover = updates.hasEmbeddedCover ? 1 : 0;
-    }
-    if (updates.hasEmbeddedLyrics !== undefined) {
-      setClauses.push('has_embedded_lyrics = @has_embedded_lyrics');
-      params.has_embedded_lyrics = updates.hasEmbeddedLyrics ? 1 : 0;
-    }
-    if (updates.isTrashed !== undefined) {
-      setClauses.push('is_trashed = @is_trashed');
-      params.is_trashed = updates.isTrashed ? 1 : 0;
+
+    const booleanFields: Array<[keyof Track, string]> = [
+      ['hasEmbeddedCover', 'has_embedded_cover'],
+      ['hasEmbeddedLyrics', 'has_embedded_lyrics'],
+      ['isTrashed', 'is_trashed'],
+    ];
+
+    for (const [key, col] of booleanFields) {
+      if (updates[key] !== undefined) {
+        setClauses.push(`${col} = @${col}`);
+        params[col] = updates[key] ? 1 : 0;
+      }
     }
 
     if (setClauses.length === 0) return;
