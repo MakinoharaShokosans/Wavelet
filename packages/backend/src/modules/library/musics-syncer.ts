@@ -389,12 +389,14 @@ export interface SyncMusicsResult {
   missing: number;
   restored: number;
   pruned: number;
+  refreshed: number;
   circuitBreakerTriggered?: boolean;
   tracks: Track[];
 }
 
 export interface SyncMusicsOptions {
   force?: boolean;
+  resyncMetadata?: boolean;
 }
 
 export async function syncMusicsDirectory(
@@ -434,6 +436,7 @@ export async function syncMusicsDirectory(
       missing: 0,
       restored: 0,
       pruned: 0,
+      refreshed: 0,
       circuitBreakerTriggered: true,
       tracks: [],
     };
@@ -458,6 +461,7 @@ export async function syncMusicsDirectory(
   const importedTracks: Track[] = [];
   let migratedCount = 0;
   let restoredCount = 0;
+  let refreshedCount = 0;
   const taskId = `sync_musics_${Date.now()}`;
 
   for (let i = 0; i < diskAudioFiles.length; i++) {
@@ -486,6 +490,52 @@ export async function syncMusicsDirectory(
           '[曲库同步] 物理文件已重新归位，自动解除失联状态 (is_missing=0)'
         );
       }
+
+      // ISSUE-06: 外部标签与元数据增量热同步 (mtime 或尺寸变动，或显式要求全量 resync)
+      const stat = fs.statSync(filePath);
+      const isDirty = stat.mtimeMs > existing.updatedAt || stat.size !== existing.fileSize;
+      if (isDirty || options?.resyncMetadata) {
+        try {
+          const metadata = await parseAudioMetadata(filePath);
+          const fileHash = computeFileHash(filePath);
+          if (metadata.hasEmbeddedCover && metadata.coverBuffer) {
+            cacheCoverArt(metadata.coverBuffer, fileHash);
+          }
+          const title = metadata.title || path.basename(filePath, path.extname(filePath));
+          trackRepo.update(existing.id, {
+            title,
+            artist: metadata.artist || '未知艺术家',
+            album: metadata.album || '未知专辑',
+            albumArtist: metadata.albumArtist || metadata.artist || '未知艺术家',
+            duration: metadata.duration || existing.duration,
+            bitrate: metadata.bitrate || existing.bitrate,
+            sampleRate: metadata.sampleRate || existing.sampleRate,
+            bitDepth: metadata.bitDepth || existing.bitDepth,
+            channels: metadata.channels || existing.channels,
+            fileSize: stat.size,
+            fileHash,
+            hasEmbeddedCover: metadata.hasEmbeddedCover,
+            hasEmbeddedLyrics: Boolean(metadata.rawLyrics),
+            updatedAt: Date.now(),
+          });
+          existing.title = title;
+          existing.artist = metadata.artist || '未知艺术家';
+          existing.album = metadata.album || '未知专辑';
+          existing.albumArtist = metadata.albumArtist || metadata.artist || '未知艺术家';
+          existing.fileSize = stat.size;
+          existing.fileHash = fileHash;
+          existing.hasEmbeddedCover = metadata.hasEmbeddedCover;
+          existing.hasEmbeddedLyrics = Boolean(metadata.rawLyrics);
+          refreshedCount++;
+          logger.info(
+            { trackId: existing.id, title: existing.title, filePath },
+            '[曲库同步] 检测到物理文件修改或请求刷新，已原地热更新元数据与标签'
+          );
+        } catch (err) {
+          logger.warn({ err, filePath }, '[曲库同步] 刷新文件元数据失败，保留旧有信息');
+        }
+      }
+
       importedTracks.push(existing);
       continue;
     }
@@ -551,6 +601,7 @@ export async function syncMusicsDirectory(
     missing: markedMissingCount,
     restored: restoredCount,
     pruned: prunedCount,
+    refreshed: refreshedCount,
     tracks: importedTracks,
   };
 }

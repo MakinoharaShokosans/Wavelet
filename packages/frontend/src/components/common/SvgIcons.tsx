@@ -746,6 +746,19 @@ export const SvgIcons: React.FC<SvgIconProps> = ({
             <circle cx="12" cy="16" r="1" fill="currentColor" />
           </>
         );
+      case 'refresh':
+        return (
+          <>
+            <path
+              d="M21 12a9 9 0 1 1-2.636-6.364M21 3v6h-6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </>
+        );
     }
   };
 

@@ -8,6 +8,8 @@ import { IntegrityGuard } from '../../library/integrity-guard.js';
 import { LyricsRepository } from '../../library/repositories/lyrics.repository.js';
 import { PlaylistRepository } from '../../library/repositories/playlist.repository.js';
 import { TrackRepository } from '../../library/repositories/track.repository.js';
+import { computeFileHash } from '../../transcoder/flac-standardizer.js';
+import { cacheCoverArt, parseAudioMetadata } from '../../transcoder/metadata-writer.js';
 
 export const tracksRoute: FastifyPluginAsync = async (fastify) => {
   const trackRepo = new TrackRepository();
@@ -228,5 +230,56 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     }
     const isFavorite = playlistRepo.toggleFavorite(id);
     return { success: true, trackId: id, isFavorite };
+  });
+
+  // 10. 手动重新读取并刷新单首曲目元数据 (ISSUE-06)
+  fastify.post('/api/tracks/:id/refresh', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const track = trackRepo.findById(id);
+    if (!track) {
+      return reply.status(404).send({ error: '曲目不存在' });
+    }
+    if (!fs.existsSync(track.filePath)) {
+      trackRepo.update(track.id, { isMissing: true, missingAt: Date.now() });
+      return reply.status(400).send({ error: '物理文件在磁盘上不存在，已标记为失联' });
+    }
+
+    try {
+      const stat = fs.statSync(track.filePath);
+      const fileHash = computeFileHash(track.filePath);
+      const metadata = await parseAudioMetadata(track.filePath);
+
+      if (metadata.hasEmbeddedCover && metadata.coverBuffer) {
+        cacheCoverArt(metadata.coverBuffer, fileHash);
+      }
+
+      const title = metadata.title || path.basename(track.filePath, path.extname(track.filePath));
+      trackRepo.update(track.id, {
+        title,
+        artist: metadata.artist || '未知艺术家',
+        album: metadata.album || '未知专辑',
+        albumArtist: metadata.albumArtist || metadata.artist || '未知艺术家',
+        duration: metadata.duration || track.duration,
+        bitrate: metadata.bitrate || track.bitrate,
+        sampleRate: metadata.sampleRate || track.sampleRate,
+        bitDepth: metadata.bitDepth || track.bitDepth,
+        channels: metadata.channels || track.channels,
+        fileSize: stat.size,
+        fileHash,
+        hasEmbeddedCover: metadata.hasEmbeddedCover,
+        hasEmbeddedLyrics: Boolean(metadata.rawLyrics),
+        isMissing: false,
+        missingAt: null,
+        updatedAt: Date.now(),
+      });
+
+      const updated = trackRepo.findById(track.id);
+      return {
+        success: true,
+        track: updated ? { ...updated, isFavorite: playlistRepo.isFavorite(track.id) } : null,
+      };
+    } catch (err) {
+      return reply.status(500).send({ error: `重新解析元数据失败: ${String(err)}` });
+    }
   });
 };

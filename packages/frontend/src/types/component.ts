@@ -38,7 +38,8 @@ export type SvgIconName =
   | 'image'
   | 'chevron-down'
   | 'alert'
-  | 'check';
+  | 'check'
+  | 'refresh';
 
 export interface SvgIconProps {
   name: SvgIconName;

@@ -27,6 +27,7 @@ interface CardActionButtonsProps {
   onEdit: () => void;
   onRestore: () => void;
   onPurge: () => void;
+  onRefresh: () => void;
   onRemoveFromPlaylist: () => void;
   onMoveToTrash: () => void;
 }
@@ -40,6 +41,7 @@ const CardActionButtons: React.FC<CardActionButtonsProps> = ({
   onEdit,
   onRestore,
   onPurge,
+  onRefresh,
   onRemoveFromPlaylist,
   onMoveToTrash,
 }) => {
@@ -88,6 +90,20 @@ const CardActionButtons: React.FC<CardActionButtonsProps> = ({
       >
         <SvgIcons name="edit" size={12} />
       </button>
+
+      {!isTrashPlaylist && !track.isMissing && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRefresh();
+          }}
+          className="w-7 h-7 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center justify-center transition-colors cursor-pointer shadow-[var(--shadow-xs)]"
+          title="重新从文件读取标签与封面"
+        >
+          <SvgIcons name="refresh" size={12} />
+        </button>
+      )}
 
       {isTrashPlaylist ? (
         <>
@@ -178,6 +194,7 @@ interface TrackCarouselCardProps {
   onEdit: () => void;
   onRestore: () => void;
   onPurge: () => void;
+  onRefresh: () => void;
   onRemoveFromPlaylist: () => void;
   onMoveToTrash: () => void;
 }
@@ -200,6 +217,7 @@ const TrackCarouselCard: React.FC<TrackCarouselCardProps> = ({
   onEdit,
   onRestore,
   onPurge,
+  onRefresh,
   onRemoveFromPlaylist,
   onMoveToTrash,
 }) => {
@@ -263,6 +281,7 @@ const TrackCarouselCard: React.FC<TrackCarouselCardProps> = ({
           onEdit={onEdit}
           onRestore={onRestore}
           onPurge={onPurge}
+          onRefresh={onRefresh}
           onRemoveFromPlaylist={onRemoveFromPlaylist}
           onMoveToTrash={onMoveToTrash}
         />
@@ -352,6 +371,7 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
     trashTrack,
     restoreTrack,
     purgeTrack,
+    refreshTrackMetadata,
   } = useLibraryStore();
   const { navigate, showToast } = useUIStore();
 
@@ -415,6 +435,15 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
     }
   };
 
+  const handleRefreshTrack = async (track: Track) => {
+    try {
+      await refreshTrackMetadata(track.id);
+      showToast(`已从物理文件重新读取《${track.title}》的标签与封面`, 'success');
+    } catch {
+      showToast('重新读取标签失败', 'error');
+    }
+  };
+
   return (
     <div className="w-full flex flex-col space-y-4">
       {/* 顶部轻量引导说明 */}
@@ -469,6 +498,7 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
                 onEdit={() => setEditingTrack(track)}
                 onRestore={() => restoreTrack(track.id)}
                 onPurge={() => handlePurge(track)}
+                onRefresh={() => void handleRefreshTrack(track)}
                 onRemoveFromPlaylist={() => removeTrackFromPlaylist(effectivePlaylistId, track.id)}
                 onMoveToTrash={() => handleMoveToTrash(track)}
               />

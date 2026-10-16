@@ -35,10 +35,25 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
     trashTrack,
     restoreTrack,
     purgeTrack,
+    refreshTrackMetadata,
   } = useLibraryStore();
   const { showToast } = useUIStore();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefreshMetadata = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setIsRefreshing(true);
+      await refreshTrackMetadata(track.id);
+      showToast(`已从物理文件重新读取《${track.title}》的标签与封面`, 'success');
+    } catch {
+      showToast('重新读取标签失败', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const isCurrent = currentTrack?.id === track.id;
   const isHiRes = track.sampleRate >= 96000 || track.bitDepth >= 24;
@@ -201,6 +216,29 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
               }
               content="编辑元数据与封面"
             />
+
+            {/* 重新读取物理标签与封面 (ISSUE-06) */}
+            {!isTrashPlaylist && !track.isMissing && (
+              <FloatingCard
+                trigger={
+                  <button
+                    type="button"
+                    onClick={handleRefreshMetadata}
+                    disabled={isRefreshing}
+                    className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[var(--bg-elevated)] transition-colors text-[var(--text-secondary)] cursor-pointer disabled:opacity-50"
+                  >
+                    <span
+                      className={
+                        isRefreshing ? 'animate-spin flex items-center' : 'flex items-center'
+                      }
+                    >
+                      <SvgIcons name="refresh" size={13} />
+                    </span>
+                  </button>
+                }
+                content="重新读取标签 (热刷新)"
+              />
+            )}
 
             {/* 场景自适应删除/移除/恢复按钮 */}
             {isTrashPlaylist ? (

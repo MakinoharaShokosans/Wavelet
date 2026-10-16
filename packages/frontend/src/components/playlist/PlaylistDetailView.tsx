@@ -165,6 +165,8 @@ interface PlaylistActionsProps {
   onEmptyTrash: () => void;
   onAddTracks?: () => void;
   onCreateSubPlaylist?: () => void;
+  isRefreshing?: boolean;
+  onRefreshLibrary?: () => void;
   viewMode: 'list' | 'cards';
   onViewModeChange: (mode: 'list' | 'cards') => void;
 }
@@ -174,6 +176,8 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
   hasTracks,
   hasMissingTracks,
   onPruneMissing,
+  isRefreshing,
+  onRefreshLibrary,
   onPlayAll,
   onShufflePlayAll,
   onEditPlaylist,
@@ -319,6 +323,21 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
         </>
       )}
 
+      {onRefreshLibrary && (
+        <button
+          type="button"
+          onClick={onRefreshLibrary}
+          disabled={isRefreshing}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-[var(--shadow-xs)] disabled:opacity-50"
+          title="重新扫描本地 musics 目录并热刷新外部修改的标签与封面"
+        >
+          <span className={isRefreshing ? 'animate-spin flex items-center' : 'flex items-center'}>
+            <SvgIcons name="refresh" size={14} />
+          </span>
+          <span>{isRefreshing ? '正在同步...' : '刷新曲库'}</span>
+        </button>
+      )}
+
       {hasTracks && <ViewModeToggle viewMode={viewMode} onChange={onViewModeChange} />}
     </div>
   );
@@ -396,6 +415,7 @@ export const PlaylistDetailView: React.FC = () => {
     emptyTrash,
     pruneMissingTracks,
     copyPlaylistCoverFromTrack,
+    syncMusicsDirectory,
   } = useLibraryStore();
   const { playlistViewMode, setPlaylistViewMode, navigate, resetBreadcrumbs, showToast } =
     useUIStore();
@@ -409,6 +429,26 @@ export const PlaylistDetailView: React.FC = () => {
     playlist: null,
   });
   const [isAddTracksOpen, setIsAddTracksOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncMusics = async () => {
+    try {
+      setIsSyncing(true);
+      const res = await syncMusicsDirectory(true);
+      if (res.circuitBreakerTriggered) {
+        showToast(res.message || '扫描目录为空，已触发防灾熔断', 'warn');
+      } else {
+        showToast(
+          `曲库刷新完成：在席 ${res.imported} 首，热更新标签 ${res.refreshed} 首`,
+          'success'
+        );
+      }
+    } catch {
+      showToast('刷新曲库失败，请检查网络或后端服务', 'error');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   if (!currentPlaylist) {
     return (
@@ -512,6 +552,8 @@ export const PlaylistDetailView: React.FC = () => {
           onEmptyTrash={handleEmptyTrash}
           onAddTracks={() => setIsAddTracksOpen(true)}
           onCreateSubPlaylist={() => handleOpenCreateSubModal(currentPlaylist.id)}
+          isRefreshing={isSyncing}
+          onRefreshLibrary={handleSyncMusics}
           viewMode={playlistViewMode}
           onViewModeChange={setPlaylistViewMode}
         />

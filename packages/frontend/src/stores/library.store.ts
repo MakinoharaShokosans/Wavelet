@@ -1,5 +1,6 @@
 import type { LibraryStats, Playlist, PlaylistTreeNode, Track } from '@wavelet/shared';
 import { create } from 'zustand';
+import importService from '../services/import.service.js';
 import playlistService, {
   type CreatePlaylistInput,
   type UpdatePlaylistInput,
@@ -45,6 +46,14 @@ export interface LibraryState {
   updatePlaylistCover: (id: string, coverBase64: string) => Promise<void>;
   copyPlaylistCoverFromTrack: (id: string, trackId?: string) => Promise<void>;
   removePlaylistCover: (id: string) => Promise<void>;
+  refreshTrackMetadata: (trackId: string) => Promise<Track>;
+  syncMusicsDirectory: (resyncMetadata?: boolean) => Promise<{
+    scanned: number;
+    imported: number;
+    refreshed: number;
+    circuitBreakerTriggered?: boolean;
+    message?: string;
+  }>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -326,6 +335,37 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const updated = get().playlists.find((p) => p.id === id);
       if (updated) set({ currentPlaylist: updated });
     }
+  },
+
+  refreshTrackMetadata: async (trackId) => {
+    const res = await trackService.refreshTrack(trackId);
+    if (res.success && res.track) {
+      set((state) => ({
+        currentPlaylistTracks: state.currentPlaylistTracks.map((t) =>
+          t.id === trackId ? res.track : t
+        ),
+      }));
+      return res.track;
+    }
+    throw new Error('刷新元数据失败');
+  },
+
+  syncMusicsDirectory: async (resyncMetadata = true) => {
+    const res = await importService.scanMusics({ resyncMetadata });
+    await get().fetchPlaylists();
+    await get().fetchPlaylistTree();
+    await get().refreshStats();
+    const curr = get().currentPlaylist;
+    if (curr) {
+      await get().selectPlaylist(curr);
+    }
+    return {
+      scanned: res.totalScanned,
+      imported: res.importedCount,
+      refreshed: res.refreshedCount || 0,
+      circuitBreakerTriggered: res.circuitBreakerTriggered,
+      message: res.message,
+    };
   },
 }));
 

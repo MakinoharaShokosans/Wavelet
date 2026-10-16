@@ -24,10 +24,11 @@ export const importRoute: FastifyPluginAsync = async (fastify) => {
 
   // 2. 原地一键同步工程根目录 musics/ 专属曲库
   fastify.post('/api/import/musics', async (request) => {
-    const body = (request.body as { force?: boolean } | undefined) || {};
+    const body = (request.body as { force?: boolean; resyncMetadata?: boolean } | undefined) || {};
     const config = getConfig();
     const result = await syncMusicsDirectory(config.storage.libraryDir, {
       force: body.force,
+      resyncMetadata: body.resyncMetadata,
     });
     return {
       success: !result.circuitBreakerTriggered,
@@ -38,6 +39,7 @@ export const importRoute: FastifyPluginAsync = async (fastify) => {
       libraryDir: config.storage.libraryDir,
       totalScanned: result.scanned,
       importedCount: result.imported,
+      refreshedCount: result.refreshed,
       tracks: result.tracks,
     };
   });

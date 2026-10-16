@@ -60,6 +60,15 @@ export const trackService = {
   },
 
   /**
+   * 手动重新读取并刷新单首曲目元数据 (ISSUE-06)
+   */
+  async refreshTrack(id: string): Promise<{ success: boolean; track: Track }> {
+    return apiClient.post<{ success: boolean; track: Track }>(
+      `/api/tracks/${encodeURIComponent(id)}/refresh`
+    );
+  },
+
+  /**
    * 修改曲目元数据
    */
   async updateTrack(

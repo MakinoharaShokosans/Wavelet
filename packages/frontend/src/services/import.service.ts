@@ -15,6 +15,9 @@ export interface SyncMusicsResponse {
   libraryDir: string;
   totalScanned: number;
   importedCount: number;
+  refreshedCount?: number;
+  circuitBreakerTriggered?: boolean;
+  message?: string;
   tracks: Track[];
 }
 
@@ -29,8 +32,11 @@ export const importService = {
   /**
    * 一键原地同步工程根目录 musics 目录
    */
-  async scanMusics(): Promise<SyncMusicsResponse> {
-    return apiClient.post<SyncMusicsResponse>('/api/import/musics');
+  async scanMusics(options?: {
+    resyncMetadata?: boolean;
+    force?: boolean;
+  }): Promise<SyncMusicsResponse> {
+    return apiClient.post<SyncMusicsResponse>('/api/import/musics', options || {});
   },
 
   /**
