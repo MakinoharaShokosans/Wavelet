@@ -63,6 +63,24 @@ export const PlayerStage: React.FC = () => {
   } = usePlayerStore();
 
   const [scrubTimeMs, setScrubTimeMs] = useState<number | null>(null);
+  const [lyricsText, setLyricsText] = useState<string>('');
+
+  const currentTrackId = currentTrack?.id;
+  useEffect(() => {
+    if (!currentTrackId) {
+      setLyricsText('');
+      return;
+    }
+    let cancelled = false;
+    trackService.getLyrics(currentTrackId).then((res) => {
+      if (!cancelled) {
+        setLyricsText(res?.rawLrc || '');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrackId]);
 
   // 支持键盘 ESC 键收起大舞台
   useEffect(() => {
@@ -169,7 +187,7 @@ export const PlayerStage: React.FC = () => {
 
         {/* 右侧：毫秒级时钟对齐居中滚动歌词 */}
         <div className="h-[460px] w-full rounded-3xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] overflow-hidden">
-          <LyricsPanel lyricsText="" />
+          <LyricsPanel lyricsText={lyricsText} />
         </div>
       </main>
 

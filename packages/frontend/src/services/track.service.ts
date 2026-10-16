@@ -60,6 +60,21 @@ export const trackService = {
   },
 
   /**
+   * 获取指定单曲歌词 (ISSUE-07)
+   */
+  async getLyrics(
+    id: string
+  ): Promise<{ trackId: string; rawLrc: string; offsetMs: number } | null> {
+    try {
+      return await apiClient.get<{ trackId: string; rawLrc: string; offsetMs: number }>(
+        `/api/tracks/${encodeURIComponent(id)}/lyrics`
+      );
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * 手动重新读取并刷新单首曲目元数据 (ISSUE-06)
    */
   async refreshTrack(id: string): Promise<{ success: boolean; track: Track }> {

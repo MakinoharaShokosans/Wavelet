@@ -28,6 +28,7 @@ export * from './modules/library/repositories/lyrics.repository.js';
 export * from './modules/library/repositories/playlist.repository.js';
 export * from './modules/library/repositories/track.repository.js';
 export * from './modules/library/musics-syncer.js';
+export * from './modules/library/sidecar-detector.js';
 export * from './modules/player/device-manager.js';
 export * from './modules/player/direct-pcm-player.js';
 export * from './modules/player/fft-pump.js';

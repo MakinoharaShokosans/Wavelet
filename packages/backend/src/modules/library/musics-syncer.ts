@@ -8,8 +8,10 @@ import { diagnoseAudioFile, executeHealingPipeline } from '../inspector/pipeline
 import { extractWaveformPeaks } from '../inspector/waveform-extractor.js';
 import { computeFileHash } from '../transcoder/flac-standardizer.js';
 import { cacheCoverArt, parseAudioMetadata } from '../transcoder/metadata-writer.js';
+import { LyricsRepository } from './repositories/lyrics.repository.js';
 import { PlaylistRepository } from './repositories/playlist.repository.js';
 import { TrackRepository } from './repositories/track.repository.js';
+import { findSidecarCover, findSidecarLyrics } from './sidecar-detector.js';
 
 export const AUDIO_EXTENSIONS = new Set([
   '.flac',
@@ -147,7 +149,8 @@ export async function processSingleAudioFile(
   filePath: string,
   trackRepo: TrackRepository,
   playlistRepo: PlaylistRepository,
-  taskId: string
+  taskId: string,
+  lyricsRepo: LyricsRepository = new LyricsRepository()
 ): Promise<{ track?: Track; error?: string }> {
   try {
     // 0. 防误伤巡检 (ISSUE-05): 若新物理文件处于写入/拷贝中，暂缓入库
@@ -218,8 +221,20 @@ export async function processSingleAudioFile(
 
     const metadata = await parseAudioMetadata(activeAudioPath);
 
+    // ISSUE-07: 优先使用内嵌封面；若无内嵌封面，自动嗅探同级外挂封面
+    let hasCover = metadata.hasEmbeddedCover;
     if (metadata.hasEmbeddedCover && metadata.coverBuffer) {
       cacheCoverArt(metadata.coverBuffer, fileHash);
+    } else {
+      const sidecarCover = findSidecarCover(filePath);
+      if (sidecarCover) {
+        cacheCoverArt(sidecarCover.buffer, fileHash);
+        hasCover = true;
+        logger.info(
+          { filePath, coverPath: sidecarCover.filePath },
+          '[曲库同步] 检测到同级外挂封面，已成功缓存并关联'
+        );
+      }
     }
 
     // 异步抽取 128 点整轨波形并持久化缓存
@@ -231,9 +246,22 @@ export async function processSingleAudioFile(
 
     const title = metadata.title || path.basename(filePath, path.extname(filePath));
     const now = Date.now();
+    const trackId = `trk_${fileHash.slice(0, 16)}`;
+
+    // ISSUE-07: 优先使用内嵌歌词；若无内嵌歌词，自动嗅探同级伴随歌词文件
+    let hasLyrics = Boolean(metadata.rawLyrics);
+    let resolvedLyrics = metadata.rawLyrics;
+    if (!hasLyrics) {
+      const sidecarLyrics = findSidecarLyrics(filePath);
+      if (sidecarLyrics) {
+        hasLyrics = true;
+        resolvedLyrics = sidecarLyrics;
+        logger.info({ filePath }, '[曲库同步] 检测到外挂伴随歌词文件，已成功解析并关联');
+      }
+    }
 
     const track: Track = {
-      id: `trk_${fileHash.slice(0, 16)}`,
+      id: trackId,
       title,
       artist: metadata.artist || '未知艺术家',
       album: metadata.album || '未知专辑',
@@ -246,8 +274,8 @@ export async function processSingleAudioFile(
       filePath, // 原地索引，绝对不产生额外文件拷贝！
       fileSize: stat.size,
       fileHash,
-      hasEmbeddedCover: metadata.hasEmbeddedCover,
-      hasEmbeddedLyrics: Boolean(metadata.rawLyrics),
+      hasEmbeddedCover: hasCover,
+      hasEmbeddedLyrics: hasLyrics,
       healthyStatus: diagnosis.corruptions.length > 0 ? 'repaired' : 'healthy',
       playCount: 0,
       isFavorite: false,
@@ -265,6 +293,15 @@ export async function processSingleAudioFile(
 
     trackRepo.insert(track);
     linkTrackToPlaylists(playlistRepo, track.id);
+
+    if (hasLyrics && resolvedLyrics) {
+      lyricsRepo.upsert({
+        trackId,
+        rawLrc: resolvedLyrics,
+        offsetMs: 0,
+        updatedAt: now,
+      });
+    }
 
     broadcastTaskProgress({
       taskId,
@@ -407,6 +444,7 @@ export async function syncMusicsDirectory(
   const targetDir = dirPath ? resolveHome(dirPath) : config.storage.libraryDir;
   const trackRepo = new TrackRepository();
   const playlistRepo = new PlaylistRepository();
+  const lyricsRepo = new LyricsRepository();
 
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(targetDir, { recursive: true });
@@ -498,9 +536,38 @@ export async function syncMusicsDirectory(
         try {
           const metadata = await parseAudioMetadata(filePath);
           const fileHash = computeFileHash(filePath);
+
+          // ISSUE-07: 优先使用内嵌封面；若无内嵌封面，自动嗅探同级外挂封面
+          let hasCover = metadata.hasEmbeddedCover;
           if (metadata.hasEmbeddedCover && metadata.coverBuffer) {
             cacheCoverArt(metadata.coverBuffer, fileHash);
+          } else {
+            const sidecarCover = findSidecarCover(filePath);
+            if (sidecarCover) {
+              cacheCoverArt(sidecarCover.buffer, fileHash);
+              hasCover = true;
+            }
           }
+
+          // ISSUE-07: 优先使用内嵌歌词；若无内嵌歌词，自动嗅探同级伴随歌词文件
+          let hasLyrics = Boolean(metadata.rawLyrics);
+          let resolvedLyrics = metadata.rawLyrics;
+          if (!hasLyrics) {
+            const sidecarLyrics = findSidecarLyrics(filePath);
+            if (sidecarLyrics) {
+              hasLyrics = true;
+              resolvedLyrics = sidecarLyrics;
+            }
+          }
+          if (hasLyrics && resolvedLyrics) {
+            lyricsRepo.upsert({
+              trackId: existing.id,
+              rawLrc: resolvedLyrics,
+              offsetMs: 0,
+              updatedAt: Date.now(),
+            });
+          }
+
           const title = metadata.title || path.basename(filePath, path.extname(filePath));
           trackRepo.update(existing.id, {
             title,
@@ -514,8 +581,8 @@ export async function syncMusicsDirectory(
             channels: metadata.channels || existing.channels,
             fileSize: stat.size,
             fileHash,
-            hasEmbeddedCover: metadata.hasEmbeddedCover,
-            hasEmbeddedLyrics: Boolean(metadata.rawLyrics),
+            hasEmbeddedCover: hasCover,
+            hasEmbeddedLyrics: hasLyrics,
             updatedAt: Date.now(),
           });
           existing.title = title;
@@ -524,8 +591,8 @@ export async function syncMusicsDirectory(
           existing.albumArtist = metadata.albumArtist || metadata.artist || '未知艺术家';
           existing.fileSize = stat.size;
           existing.fileHash = fileHash;
-          existing.hasEmbeddedCover = metadata.hasEmbeddedCover;
-          existing.hasEmbeddedLyrics = Boolean(metadata.rawLyrics);
+          existing.hasEmbeddedCover = hasCover;
+          existing.hasEmbeddedLyrics = hasLyrics;
           refreshedCount++;
           logger.info(
             { trackId: existing.id, title: existing.title, filePath },
@@ -566,7 +633,13 @@ export async function syncMusicsDirectory(
     }
 
     // 确认系全新曲目，走标准化诊断与入库流程
-    const res = await processSingleAudioFile(filePath, trackRepo, playlistRepo, `${taskId}_${i}`);
+    const res = await processSingleAudioFile(
+      filePath,
+      trackRepo,
+      playlistRepo,
+      `${taskId}_${i}`,
+      lyricsRepo
+    );
     if (res.track) {
       importedTracks.push(res.track);
     }

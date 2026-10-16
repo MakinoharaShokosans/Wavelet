@@ -8,6 +8,11 @@ import { IntegrityGuard } from '../../library/integrity-guard.js';
 import { LyricsRepository } from '../../library/repositories/lyrics.repository.js';
 import { PlaylistRepository } from '../../library/repositories/playlist.repository.js';
 import { TrackRepository } from '../../library/repositories/track.repository.js';
+import {
+  detectImageMime,
+  findSidecarCover,
+  findSidecarLyrics,
+} from '../../library/sidecar-detector.js';
 import { computeFileHash } from '../../transcoder/flac-standardizer.js';
 import { cacheCoverArt, parseAudioMetadata } from '../../transcoder/metadata-writer.js';
 
@@ -105,7 +110,7 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     return { success: true, ...result };
   });
 
-  // 6. 获取曲目内嵌封面
+  // 6. 获取曲目内嵌或同级外挂封面
   fastify.get('/api/tracks/:id/cover', async (request, reply) => {
     const { id } = request.params as { id: string };
     const track = trackRepo.findById(id);
@@ -117,12 +122,22 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     const coverPath = path.join(config.storage.cacheDir, 'covers', `${track.fileHash}.webp`);
 
     if (!fs.existsSync(coverPath)) {
-      return reply.status(404).send({ error: '该曲目无内嵌封面' });
+      if (fs.existsSync(track.filePath)) {
+        const sidecarCover = findSidecarCover(track.filePath);
+        if (sidecarCover) {
+          cacheCoverArt(sidecarCover.buffer, track.fileHash);
+          trackRepo.update(track.id, { hasEmbeddedCover: true });
+        }
+      }
     }
 
-    const stream = fs.createReadStream(coverPath);
-    reply.type('image/webp');
-    return reply.send(stream);
+    if (!fs.existsSync(coverPath)) {
+      return reply.status(404).send({ error: '该曲目无封面' });
+    }
+
+    const buffer = fs.readFileSync(coverPath);
+    reply.type(detectImageMime(buffer));
+    return reply.send(buffer);
   });
 
   // 7. 上传或替换曲目封面
@@ -176,10 +191,26 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     return { success: true };
   });
 
-  // 6. 获取歌词
+  // 6. 获取歌词 (支持自动兜底探查同级外挂 .lrc 文件)
   fastify.get('/api/tracks/:id/lyrics', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const lyrics = lyricsRepo.findByTrackId(id);
+    let lyrics = lyricsRepo.findByTrackId(id);
+    if (!lyrics) {
+      const track = trackRepo.findById(id);
+      if (track && fs.existsSync(track.filePath)) {
+        const sidecar = findSidecarLyrics(track.filePath);
+        if (sidecar) {
+          lyricsRepo.upsert({
+            trackId: track.id,
+            rawLrc: sidecar,
+            offsetMs: 0,
+            updatedAt: Date.now(),
+          });
+          trackRepo.update(track.id, { hasEmbeddedLyrics: true });
+          lyrics = lyricsRepo.findByTrackId(id);
+        }
+      }
+    }
     if (!lyrics) {
       return reply.status(404).send({ error: '未找到歌词' });
     }
@@ -249,8 +280,33 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
       const fileHash = computeFileHash(track.filePath);
       const metadata = await parseAudioMetadata(track.filePath);
 
+      let hasCover = metadata.hasEmbeddedCover;
       if (metadata.hasEmbeddedCover && metadata.coverBuffer) {
         cacheCoverArt(metadata.coverBuffer, fileHash);
+      } else {
+        const sidecarCover = findSidecarCover(track.filePath);
+        if (sidecarCover) {
+          cacheCoverArt(sidecarCover.buffer, fileHash);
+          hasCover = true;
+        }
+      }
+
+      let hasLyrics = Boolean(metadata.rawLyrics);
+      let resolvedLyrics = metadata.rawLyrics;
+      if (!hasLyrics) {
+        const sidecarLyrics = findSidecarLyrics(track.filePath);
+        if (sidecarLyrics) {
+          hasLyrics = true;
+          resolvedLyrics = sidecarLyrics;
+        }
+      }
+      if (hasLyrics && resolvedLyrics) {
+        lyricsRepo.upsert({
+          trackId: track.id,
+          rawLrc: resolvedLyrics,
+          offsetMs: 0,
+          updatedAt: Date.now(),
+        });
       }
 
       const title = metadata.title || path.basename(track.filePath, path.extname(track.filePath));
@@ -266,8 +322,8 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
         channels: metadata.channels || track.channels,
         fileSize: stat.size,
         fileHash,
-        hasEmbeddedCover: metadata.hasEmbeddedCover,
-        hasEmbeddedLyrics: Boolean(metadata.rawLyrics),
+        hasEmbeddedCover: hasCover,
+        hasEmbeddedLyrics: hasLyrics,
         isMissing: false,
         missingAt: null,
         updatedAt: Date.now(),
