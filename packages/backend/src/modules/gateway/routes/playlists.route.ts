@@ -241,4 +241,10 @@ export const playlistsRoute: FastifyPluginAsync = async (fastify) => {
     const result = playlistRepo.emptyTrash(integrityGuard);
     return { success: true, ...result };
   });
+
+  // 12. 触发歌单幽灵引用与曲目计数校准 (ISSUE-08)
+  fastify.post('/api/playlists/recalibrate-counts', async () => {
+    const result = playlistRepo.recalibrateTrackCounts();
+    return { success: true, ...result };
+  });
 };

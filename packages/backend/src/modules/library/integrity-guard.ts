@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../../config/index.js';
 import { logger } from '../bootstrap/logger.js';
+import { PlaylistRepository } from './repositories/playlist.repository.js';
 import { TrackRepository } from './repositories/track.repository.js';
 
 export interface IntegrityAuditResult {
@@ -12,9 +13,11 @@ export interface IntegrityAuditResult {
 
 export class IntegrityGuard {
   private trackRepo: TrackRepository;
+  private playlistRepo: PlaylistRepository;
 
-  constructor(trackRepo?: TrackRepository) {
+  constructor(trackRepo?: TrackRepository, playlistRepo?: PlaylistRepository) {
     this.trackRepo = trackRepo || new TrackRepository();
+    this.playlistRepo = playlistRepo || new PlaylistRepository(this.trackRepo.db);
   }
 
   /**
@@ -60,8 +63,9 @@ export class IntegrityGuard {
    * 1. 物理移除音频文件
    * 2. 移除封面 WebP 缩略图缓存
    * 3. 级联删除 SQLite 数据与歌单关联
+   * 4. 自动校准受影响的歌单 track_count 冗余计数 (ISSUE-08)
    */
-  purgeTrackCompletely(trackId: string): boolean {
+  purgeTrackCompletely(trackId: string, options?: { skipRecalibrate?: boolean }): boolean {
     const track = this.trackRepo.findById(trackId);
     if (!track) return false;
 
@@ -87,7 +91,11 @@ export class IntegrityGuard {
     }
 
     // 3. 删除数据库记录 (SQLite 级联外键自动清除 playlist_tracks 与 lyrics)
-    return this.trackRepo.delete(trackId);
+    const deleted = this.trackRepo.delete(trackId);
+    if (deleted && !options?.skipRecalibrate) {
+      this.playlistRepo.recalibrateTrackCounts();
+    }
+    return deleted;
   }
 
   /**
@@ -99,10 +107,14 @@ export class IntegrityGuard {
     let purgedCount = 0;
 
     for (const track of missingTracks) {
-      if (this.purgeTrackCompletely(track.id)) {
+      if (this.purgeTrackCompletely(track.id, { skipRecalibrate: true })) {
         purgedCount++;
         trackIds.push(track.id);
       }
+    }
+
+    if (purgedCount > 0) {
+      this.playlistRepo.recalibrateTrackCounts();
     }
 
     logger.info({ purgedCount, trackIds }, '[IntegrityGuard] 用户主动批量清理失联曲目完成');

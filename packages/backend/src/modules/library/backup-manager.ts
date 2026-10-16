@@ -360,6 +360,9 @@ export class BackupManager {
       );
     }
 
+    // 校准歌单实际曲目数 (ISSUE-08)
+    this.playlistRepo.recalibrateTrackCounts();
+
     options.onProgress?.('completed', 100, '曲库备份恢复完毕！');
     logger.info(
       { tracks: totalTracks, playlists: dump.playlists.length },

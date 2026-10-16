@@ -663,6 +663,9 @@ export async function syncMusicsDirectory(
     }
   }
 
+  // 5. 校准全部歌单曲目计数并清理潜在幽灵引用 (ISSUE-08)
+  playlistRepo.recalibrateTrackCounts();
+
   logger.info(
     `[曲库同步] 扫描完成: 共检测到 ${diskAudioFiles.length} 首物理文件，在席/保活 ${importedTracks.length} 首 (迁移 ${migratedCount} 首, 自动复活 ${restoredCount} 首)，标记软缺失 ${markedMissingCount} 首`
   );

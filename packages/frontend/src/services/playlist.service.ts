@@ -146,6 +146,21 @@ export const playlistService = {
       '/api/playlists/default_trash/empty'
     );
   },
+
+  /**
+   * 校准所有歌单的有效曲目数与清理幽灵引用 (ISSUE-08)
+   */
+  async recalibrateCounts(): Promise<{
+    success: boolean;
+    updatedPlaylists: number;
+    cleanedGhostRelations: number;
+  }> {
+    return apiClient.post<{
+      success: boolean;
+      updatedPlaylists: number;
+      cleanedGhostRelations: number;
+    }>('/api/playlists/recalibrate-counts');
+  },
 };
 
 export default playlistService;

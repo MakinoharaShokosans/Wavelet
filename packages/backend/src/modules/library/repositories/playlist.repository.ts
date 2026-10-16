@@ -501,7 +501,9 @@ export class PlaylistRepository {
     restoreTx();
   }
 
-  emptyTrash(integrityGuard?: { purgeTrackCompletely: (id: string) => boolean }): {
+  emptyTrash(integrityGuard?: {
+    purgeTrackCompletely: (id: string, options?: { skipRecalibrate?: boolean }) => boolean;
+  }): {
     purgedCount: number;
   } {
     const rows = this.db
@@ -513,14 +515,14 @@ export class PlaylistRepository {
     let purgedCount = 0;
     for (const row of rows) {
       if (integrityGuard) {
-        integrityGuard.purgeTrackCompletely(row.track_id);
+        integrityGuard.purgeTrackCompletely(row.track_id, { skipRecalibrate: true });
       } else {
         this.db.prepare('DELETE FROM tracks WHERE id = ?').run(row.track_id);
       }
       purgedCount++;
     }
 
-    this.updateTrackCount('default_trash');
+    this.recalibrateTrackCounts();
     return { purgedCount };
   }
 
@@ -760,13 +762,103 @@ export class PlaylistRepository {
     }
   }
 
+  /**
+   * 全量校准所有歌单的 track_count 冗余计数并消除幽灵曲目关联 (ISSUE-08)
+   * 1. 清除不存在曲目的孤立关联
+   * 2. 清除普通歌单中被标记为 is_trashed 的幽灵关联
+   * 3. 清除回收歌单中未被标记为 is_trashed 的幽灵关联
+   * 4. 强制目录文件夹 track_count 保持为 0
+   * 5. 原子级联重算并更新所有非目录歌单的实际在席有效曲目数
+   */
+  recalibrateTrackCounts(): { updatedPlaylists: number; cleanedGhostRelations: number } {
+    const now = Date.now();
+    let cleanedGhostRelations = 0;
+
+    const recalibrateTx = this.db.transaction(() => {
+      // 1. 清理孤立关联 (曲目已被物理删除)
+      const orphanRes = this.db
+        .prepare('DELETE FROM playlist_tracks WHERE track_id NOT IN (SELECT id FROM tracks)')
+        .run();
+      cleanedGhostRelations += orphanRes.changes;
+
+      // 2. 清理普通歌单中已被移入回收站的幽灵关联
+      const trashedGhostRes = this.db
+        .prepare(
+          "DELETE FROM playlist_tracks WHERE playlist_id != 'default_trash' AND track_id IN (SELECT id FROM tracks WHERE is_trashed = 1)"
+        )
+        .run();
+      cleanedGhostRelations += trashedGhostRes.changes;
+
+      // 3. 清理回收歌单中已恢复正常的曲目关联
+      const trashCleanRes = this.db
+        .prepare(
+          "DELETE FROM playlist_tracks WHERE playlist_id = 'default_trash' AND track_id IN (SELECT id FROM tracks WHERE COALESCE(is_trashed, 0) = 0)"
+        )
+        .run();
+      cleanedGhostRelations += trashCleanRes.changes;
+
+      // 4. 文件夹目录的曲目数强制归零
+      this.db
+        .prepare('UPDATE playlists SET track_count = 0, updated_at = ? WHERE is_folder = 1')
+        .run(now);
+
+      // 5. 非文件夹歌单重新原子计算实际有效曲目数
+      const updateRes = this.db
+        .prepare(`
+          UPDATE playlists
+          SET track_count = (
+            SELECT COUNT(pt.track_id)
+            FROM playlist_tracks pt
+            JOIN tracks t ON pt.track_id = t.id
+            WHERE pt.playlist_id = playlists.id
+              AND (
+                (playlists.id = 'default_trash' AND t.is_trashed = 1)
+                OR (playlists.id != 'default_trash' AND COALESCE(t.is_trashed, 0) = 0)
+              )
+          ),
+          updated_at = ?
+          WHERE is_folder = 0
+        `)
+        .run(now);
+
+      return updateRes.changes;
+    });
+
+    const updatedPlaylists = recalibrateTx();
+    return { updatedPlaylists, cleanedGhostRelations };
+  }
+
   private updateTrackCount(playlistId: string): void {
+    const pl = this.findById(playlistId);
+    if (!pl) return;
+    if (pl.isFolder) {
+      this.db
+        .prepare('UPDATE playlists SET track_count = 0, updated_at = ? WHERE id = ?')
+        .run(Date.now(), playlistId);
+      return;
+    }
+
+    const isTrash = playlistId === 'default_trash';
     const countRow = this.db
-      .prepare('SELECT COUNT(*) as count FROM playlist_tracks WHERE playlist_id = ?')
-      .get(playlistId) as { count: number };
+      .prepare(
+        isTrash
+          ? `
+            SELECT COUNT(pt.track_id) as count
+            FROM playlist_tracks pt
+            JOIN tracks t ON pt.track_id = t.id
+            WHERE pt.playlist_id = ? AND t.is_trashed = 1
+          `
+          : `
+            SELECT COUNT(pt.track_id) as count
+            FROM playlist_tracks pt
+            JOIN tracks t ON pt.track_id = t.id
+            WHERE pt.playlist_id = ? AND COALESCE(t.is_trashed, 0) = 0
+          `
+      )
+      .get(playlistId) as { count: number } | undefined;
 
     this.db
       .prepare('UPDATE playlists SET track_count = ?, updated_at = ? WHERE id = ?')
-      .run(countRow.count, Date.now(), playlistId);
+      .run(countRow?.count ?? 0, Date.now(), playlistId);
   }
 }

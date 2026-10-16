@@ -54,6 +54,11 @@ export interface LibraryState {
     circuitBreakerTriggered?: boolean;
     message?: string;
   }>;
+  recalibratePlaylistCounts: () => Promise<{
+    success: boolean;
+    updatedPlaylists: number;
+    cleanedGhostRelations: number;
+  }>;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -366,6 +371,18 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       circuitBreakerTriggered: res.circuitBreakerTriggered,
       message: res.message,
     };
+  },
+
+  recalibratePlaylistCounts: async () => {
+    const res = await playlistService.recalibrateCounts();
+    await get().fetchPlaylists();
+    await get().fetchPlaylistTree();
+    await get().refreshStats();
+    const curr = get().currentPlaylist;
+    if (curr) {
+      await get().selectPlaylist(curr);
+    }
+    return res;
   },
 }));
 

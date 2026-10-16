@@ -65,7 +65,7 @@ function mapRowToTrack(row: TrackRow): Track {
 }
 
 export class TrackRepository {
-  private db: Database.Database;
+  public readonly db: Database.Database;
 
   constructor(db?: Database.Database) {
     this.db = db || getDatabase();
