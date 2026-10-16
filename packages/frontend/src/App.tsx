@@ -9,13 +9,14 @@ import PlayerStage from './components/player/PlayerStage.js';
 import PlaylistDetailView from './components/playlist/PlaylistDetailView.js';
 import SplashView from './components/splash/SplashView.js';
 import ZeroStateView from './components/splash/ZeroStateView.js';
+import ToastContainer from './components/common/ToastContainer.js';
 import { useWaveletWs } from './hooks/useWaveletWs.js';
 import { usePlayerStore } from './stores/player.store.js';
 import { useUIStore } from './stores/ui.store.js';
 import type { Track } from './types/index.js';
 
 export default function App(): React.JSX.Element {
-  const { currentView } = useUIStore();
+  const { currentView, showToast } = useUIStore();
   const { initPlayer, syncPlayback, syncQueue, togglePlayPause } = usePlayerStore();
 
   // 1. 初始化播放器底层状态
@@ -27,6 +28,13 @@ export default function App(): React.JSX.Element {
   useWaveletWs({
     onPlaybackSync: (sync) => {
       syncPlayback(sync);
+    },
+    onPlaybackMissing: (missing) => {
+      const songTitle = missing.title || '当前曲目';
+      const msg = missing.autoSkipped
+        ? `《${songTitle}》物理文件已在磁盘丢失，已自动跳过`
+        : `《${songTitle}》物理文件已在磁盘丢失，已停止播放`;
+      showToast(msg, 'warn');
     },
     onQueue: (queueData) => {
       if (Array.isArray(queueData.queue)) {
@@ -93,6 +101,7 @@ export default function App(): React.JSX.Element {
   return (
     <div className="w-screen h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] overflow-hidden font-sans select-none">
       <AnimatePresence mode="wait">{renderCurrentView()}</AnimatePresence>
+      <ToastContainer />
     </div>
   );
 }

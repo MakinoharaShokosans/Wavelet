@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import wsClient, {
+  type PlaybackMissingData,
   type PlaybackSyncData,
   type QueueSyncData,
   type TaskProgressData,
@@ -8,13 +9,21 @@ import wsClient, {
 export interface UseWaveletWsOptions {
   onFft?: (bands: number[]) => void;
   onPlaybackSync?: (sync: PlaybackSyncData) => void;
+  onPlaybackMissing?: (missing: PlaybackMissingData) => void;
   onQueue?: (queue: QueueSyncData) => void;
   onTaskProgress?: (progress: TaskProgressData) => void;
   autoConnect?: boolean;
 }
 
 export function useWaveletWs(options: UseWaveletWsOptions = {}): { isConnected: boolean } {
-  const { onFft, onPlaybackSync, onQueue, onTaskProgress, autoConnect = true } = options;
+  const {
+    onFft,
+    onPlaybackSync,
+    onPlaybackMissing,
+    onQueue,
+    onTaskProgress,
+    autoConnect = true,
+  } = options;
   const [isConnected, setIsConnected] = useState<boolean>(wsClient.isConnected());
 
   useEffect(() => {
@@ -40,6 +49,11 @@ export function useWaveletWs(options: UseWaveletWsOptions = {}): { isConnected: 
     if (!onPlaybackSync) return;
     return wsClient.onPlaybackSync(onPlaybackSync);
   }, [onPlaybackSync]);
+
+  useEffect(() => {
+    if (!onPlaybackMissing) return;
+    return wsClient.onPlaybackMissing(onPlaybackMissing);
+  }, [onPlaybackMissing]);
 
   useEffect(() => {
     if (!onQueue) return;

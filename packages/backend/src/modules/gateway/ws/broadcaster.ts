@@ -61,3 +61,15 @@ export function broadcastPlaybackQueue(info: {
 }): void {
   broadcast('playback:queue', info);
 }
+
+/**
+ * 物理文件丢失告警广播 (用于通知前端提示与自动跳播)
+ */
+export function broadcastPlaybackMissing(info: {
+  trackId: string;
+  title?: string;
+  filePath: string;
+  autoSkipped: boolean;
+}): void {
+  broadcast('playback:missing', info);
+}

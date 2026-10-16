@@ -21,6 +21,13 @@ export interface QueueSyncData {
   playMode: string;
 }
 
+export interface PlaybackMissingData {
+  trackId: string;
+  title?: string;
+  filePath: string;
+  autoSkipped: boolean;
+}
+
 export type WsEventListener<T> = (data: T) => void;
 
 class WaveletWsClient {
@@ -32,6 +39,7 @@ class WaveletWsClient {
 
   private fftListeners = new Set<WsEventListener<number[]>>();
   private playbackSyncListeners = new Set<WsEventListener<PlaybackSyncData>>();
+  private playbackMissingListeners = new Set<WsEventListener<PlaybackMissingData>>();
   private taskProgressListeners = new Set<WsEventListener<TaskProgressData>>();
   private queueListeners = new Set<WsEventListener<QueueSyncData>>();
   private connectionChangeListeners = new Set<WsEventListener<boolean>>();
@@ -113,6 +121,11 @@ class WaveletWsClient {
     return () => this.playbackSyncListeners.delete(listener);
   }
 
+  onPlaybackMissing(listener: WsEventListener<PlaybackMissingData>): () => void {
+    this.playbackMissingListeners.add(listener);
+    return () => this.playbackMissingListeners.delete(listener);
+  }
+
   onTaskProgress(listener: WsEventListener<TaskProgressData>): () => void {
     this.taskProgressListeners.add(listener);
     return () => this.taskProgressListeners.delete(listener);
@@ -142,6 +155,12 @@ class WaveletWsClient {
     }
   }
 
+  private dispatchPlaybackMissing(data: unknown): void {
+    if (data && typeof data === 'object') {
+      for (const l of this.playbackMissingListeners) l(data as PlaybackMissingData);
+    }
+  }
+
   private dispatchTaskProgress(data: unknown): void {
     if (data && typeof data === 'object') {
       for (const l of this.taskProgressListeners) l(data as TaskProgressData);
@@ -159,6 +178,8 @@ class WaveletWsClient {
       this.dispatchFft(data);
     } else if (eventName === 'playback:sync') {
       this.dispatchPlaybackSync(data);
+    } else if (eventName === 'playback:missing' || eventName === 'track:missing') {
+      this.dispatchPlaybackMissing(data);
     } else if (eventName === 'task:progress') {
       this.dispatchTaskProgress(data);
     } else if (eventName === 'playback:queue' || eventName === 'player:queue') {

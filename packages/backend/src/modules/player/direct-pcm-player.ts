@@ -110,6 +110,15 @@ export class DirectPcmPlayer {
   async play(track: Track, offsetMs = 0): Promise<void> {
     this.stop();
 
+    if (!fs.existsSync(track.filePath)) {
+      logger.warn(
+        { trackId: track.id, filePath: track.filePath },
+        '[DirectPlayer] 物理文件不存在，拦截硬件直通启动'
+      );
+      this.state = 'stopped';
+      return;
+    }
+
     this.currentTrack = track;
     this.durationMs = track.duration * 1000;
     this.startOffsetMs = Math.max(0, Math.min(offsetMs, this.durationMs));

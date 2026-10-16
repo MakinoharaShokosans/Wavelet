@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import type { AppView, BreadcrumbItem, PlaylistViewMode } from '../types/view.js';
 
+export interface Toast {
+  id: string;
+  message: string;
+  type?: 'info' | 'warn' | 'error' | 'success';
+  durationMs?: number;
+}
+
 export interface UIState {
   currentView: AppView;
   previousView: AppView | null;
@@ -9,6 +16,7 @@ export interface UIState {
   isBackupModalOpen: boolean;
   playlistViewMode: PlaylistViewMode;
   breadcrumbStack: BreadcrumbItem[];
+  toasts: Toast[];
 
   navigate: (view: AppView) => void;
   goBack: () => void;
@@ -21,6 +29,12 @@ export interface UIState {
   pushBreadcrumb: (item: BreadcrumbItem) => void;
   popBreadcrumb: (toIndex?: number) => void;
   resetBreadcrumbs: () => void;
+  showToast: (
+    message: string,
+    type?: 'info' | 'warn' | 'error' | 'success',
+    durationMs?: number
+  ) => void;
+  dismissToast: (id: string) => void;
 }
 
 const initialBreadcrumb: BreadcrumbItem = {
@@ -37,6 +51,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isBackupModalOpen: false,
   playlistViewMode: 'list',
   breadcrumbStack: [initialBreadcrumb],
+  toasts: [],
 
   navigate: (view: AppView) => {
     const current = get().currentView;
@@ -95,6 +110,24 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   resetBreadcrumbs: () => {
     set({ breadcrumbStack: [initialBreadcrumb] });
+  },
+
+  showToast: (message: string, type = 'info', durationMs = 3500) => {
+    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    set((state) => ({
+      toasts: [...state.toasts, { id, message, type, durationMs }],
+    }));
+    if (durationMs > 0) {
+      setTimeout(() => {
+        get().dismissToast(id);
+      }, durationMs);
+    }
+  },
+
+  dismissToast: (id: string) => {
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id),
+    }));
   },
 }));
 

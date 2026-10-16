@@ -59,6 +59,7 @@ const initialStatus: PlaybackStatus = {
 };
 
 let hasInitializedAudioEngine = false;
+let consecutivePlaybackErrors = 0;
 
 function handleAudioEngineEvent(
   event: 'play' | 'pause' | 'timeupdate' | 'ended' | 'error',
@@ -80,14 +81,31 @@ function handleAudioEngineEvent(
       }
       break;
     case 'ended':
+      consecutivePlaybackErrors = 0;
       onEnded();
       break;
     case 'play':
+      consecutivePlaybackErrors = 0;
       set({ isPlaying: true });
       break;
     case 'pause':
       set({ isPlaying: false });
       break;
+    case 'error': {
+      consecutivePlaybackErrors++;
+      const queue = get().queue;
+      set({ isPlaying: false });
+
+      if (queue.length > 0 && consecutivePlaybackErrors >= queue.length) {
+        console.warn('[PlayerStore] 队列内所有曲目均不可播放或物理文件丢失，熔断保护生效停止播放');
+        consecutivePlaybackErrors = 0;
+        void get().stop();
+        return;
+      }
+
+      onEnded();
+      break;
+    }
   }
 }
 
@@ -147,6 +165,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   playTrack: async (track: Track, queueContext?: Track[], sourcePlaylistName?: string) => {
+    consecutivePlaybackErrors = 0;
     let resolvedPlaylistName = sourcePlaylistName;
     if (!resolvedPlaylistName) {
       const activeLibPlaylist = useLibraryStore.getState().currentPlaylist;
@@ -231,6 +250,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   stop: async () => {
+    consecutivePlaybackErrors = 0;
     audioEngine.stop();
     set({
       currentTrack: null,
@@ -396,6 +416,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setQueue: async (tracks: Track[], startIndex = 0) => {
+    consecutivePlaybackErrors = 0;
     try {
       const queueStatus = await playerService.setQueue(tracks, startIndex);
       set({
@@ -426,6 +447,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   clearQueue: async () => {
+    consecutivePlaybackErrors = 0;
     try {
       const queueStatus = await playerService.clearQueue();
       set({
@@ -442,9 +464,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   syncQueue: (queue: Track[], currentIndex: number) => {
+    const currentTrack =
+      currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : get().currentTrack;
     set({
       queue,
       currentIndex,
+      currentTrack,
     });
   },
 

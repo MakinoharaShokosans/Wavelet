@@ -1,7 +1,12 @@
+import fs from 'node:fs';
 import type { PlayMode, PlayQueueStatus, Track } from '@wavelet/shared';
 import { getConfig } from '../../config/index.js';
 import { logger } from '../bootstrap/logger.js';
-import { broadcastPlaybackQueue, broadcastPlaybackSync } from '../gateway/ws/broadcaster.js';
+import {
+  broadcastPlaybackMissing,
+  broadcastPlaybackQueue,
+  broadcastPlaybackSync,
+} from '../gateway/ws/broadcaster.js';
 import { TrackRepository } from '../library/repositories/track.repository.js';
 import { type PlaybackState, getDirectPlayer } from './direct-pcm-player.js';
 
@@ -27,6 +32,7 @@ export class PlaybackRouter {
   private queue: Track[] = [];
   private currentIndex = -1;
   private playMode: PlayMode = 'sequence';
+  private consecutiveMissingCount = 0;
 
   // Web 回退模式状态记录
   private webState: PlaybackState = 'stopped';
@@ -50,9 +56,6 @@ export class PlaybackRouter {
       throw new Error(`曲目 ${trackId} 不存在`);
     }
 
-    // 记录播放度量指标 (自增 play_count 并记录时间戳)
-    this.trackRepo.recordPlayback(track.id);
-
     // 同步更新队列中的当前播放指针
     const existingIndex = this.queue.findIndex((t) => t.id === trackId);
     if (existingIndex !== -1) {
@@ -62,6 +65,56 @@ export class PlaybackRouter {
       this.currentIndex = this.queue.length - 1;
     }
     broadcastPlaybackQueue(this.getQueue());
+
+    // 毫秒级物理文件轻量存在性检查 (ISSUE-01: 物理文件丢失防御)
+    if (!fs.existsSync(track.filePath)) {
+      this.consecutiveMissingCount += 1;
+      const shouldAutoSkip =
+        this.queue.length > 0 && this.consecutiveMissingCount < this.queue.length;
+
+      logger.warn(
+        {
+          trackId: track.id,
+          title: track.title,
+          filePath: track.filePath,
+          consecutiveMissing: this.consecutiveMissingCount,
+        },
+        '[PlaybackRouter] 目标音频物理文件在磁盘上丢失，拦截播放'
+      );
+
+      broadcastPlaybackMissing({
+        trackId: track.id,
+        title: track.title,
+        filePath: track.filePath,
+        autoSkipped: shouldAutoSkip,
+      });
+
+      if (this.mode === 'direct') {
+        getDirectPlayer().stop();
+        if (shouldAutoSkip) {
+          setTimeout(() => {
+            void this.next();
+          }, 120);
+        } else {
+          logger.warn('[PlaybackRouter] 队列内所有曲目文件均丢失，触发熔断并停止硬件直通');
+          this.stop();
+        }
+      } else {
+        // Web 模式: 清除虚假播放状态，由前端根据音频流 404 或 WS 广播进行跳播
+        this.webState = 'stopped';
+        this.webTimeMs = 0;
+        if (!shouldAutoSkip) {
+          this.stop();
+        }
+      }
+      return;
+    }
+
+    // 物理文件校验通过，重置连续丢失熔断计数器
+    this.consecutiveMissingCount = 0;
+
+    // 记录播放度量指标 (自增 play_count 并记录时间戳)
+    this.trackRepo.recordPlayback(track.id);
 
     if (this.mode === 'direct') {
       const directPlayer = getDirectPlayer();
@@ -101,6 +154,7 @@ export class PlaybackRouter {
   }
 
   async setQueue(tracks: Track[], startIndex = 0): Promise<void> {
+    this.consecutiveMissingCount = 0;
     this.queue = [...tracks];
     this.currentIndex = Math.max(0, Math.min(startIndex, this.queue.length - 1));
 
@@ -130,6 +184,7 @@ export class PlaybackRouter {
   }
 
   clearQueue(): void {
+    this.consecutiveMissingCount = 0;
     const current = this.currentIndex >= 0 ? this.queue[this.currentIndex] : null;
     this.queue = current ? [current] : [];
     this.currentIndex = current ? 0 : -1;
@@ -230,6 +285,7 @@ export class PlaybackRouter {
    * 停止
    */
   stop(): void {
+    this.consecutiveMissingCount = 0;
     getDirectPlayer().stop();
     this.webState = 'stopped';
     this.webTimeMs = 0;
