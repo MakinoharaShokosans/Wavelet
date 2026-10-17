@@ -44,6 +44,8 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
     next,
     snapOffset,
     getItemDelay,
+    dragProps,
+    isDraggingRef,
   } = useCarouselSnap({ totalItems });
 
   const handleSelectChild = (child: Playlist) => {
@@ -52,6 +54,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
   };
 
   const handleChildCardClick = (child: Playlist, idx: number) => {
+    if (isDraggingRef.current) return;
     if (idx !== activeIndex) {
       setActiveIndex(idx);
     } else {
@@ -60,6 +63,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
   };
 
   const handleCreateCardClick = (idx: number) => {
+    if (isDraggingRef.current) return;
     setActiveIndex(idx);
     onCreateSubPlaylist?.();
   };
@@ -140,29 +144,42 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
               <motion.div
                 animate={{ x: snapOffset }}
                 transition={hasEntered ? springMotion.rebound : { duration: 0 }}
-                className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max"
+                style={{ willChange: 'transform' }}
+                className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu"
+                {...dragProps}
               >
-                {children.map((child, idx) => (
-                  <motion.div
-                    key={child.id}
-                    initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{
-                      ...springMotion.gentle,
-                      delay: getItemDelay(idx),
-                    }}
-                  >
-                    <PlaylistCard
-                      playlist={child}
-                      isActive={idx === activeIndex}
-                      onClick={() => handleChildCardClick(child, idx)}
-                      onEdit={onEditSubPlaylist}
-                      onDelete={onDeleteSubPlaylist}
-                      onPlay={onPlaySubPlaylist}
-                      index={idx}
-                    />
-                  </motion.div>
-                ))}
+                {children.map((child, idx) => {
+                  const isNear = Math.abs(idx - activeIndex) <= 6;
+                  if (!isNear) {
+                    return (
+                      <div
+                        key={child.id}
+                        className="w-64 h-80 rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
+                      />
+                    );
+                  }
+                  return (
+                    <motion.div
+                      key={child.id}
+                      initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{
+                        ...springMotion.gentle,
+                        delay: getItemDelay(idx),
+                      }}
+                    >
+                      <PlaylistCard
+                        playlist={child}
+                        isActive={idx === activeIndex}
+                        onClick={() => handleChildCardClick(child, idx)}
+                        onEdit={onEditSubPlaylist}
+                        onDelete={onDeleteSubPlaylist}
+                        onPlay={onPlaySubPlaylist}
+                        index={idx}
+                      />
+                    </motion.div>
+                  );
+                })}
 
                 {onCreateSubPlaylist && (
                   <motion.div

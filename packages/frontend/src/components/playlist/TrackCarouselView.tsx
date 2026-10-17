@@ -392,9 +392,12 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
     next,
     snapOffset,
     getItemDelay,
+    dragProps,
+    isDraggingRef,
   } = useCarouselSnap({ totalItems: tracks.length });
 
   const handleCardClick = (track: Track, index: number) => {
+    if (isDraggingRef.current) return;
     if (index !== activeIndex) {
       setActiveIndex(index);
     } else {
@@ -466,44 +469,57 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
         <motion.div
           animate={{ x: snapOffset }}
           transition={hasEntered ? springMotion.rebound : { duration: 0 }}
-          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max"
+          style={{ willChange: 'transform' }}
+          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu"
+          {...dragProps}
         >
-          {tracks.map((track, idx) => (
-            <motion.div
-              key={track.id}
-              initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{
-                ...springMotion.gentle,
-                delay: getItemDelay(idx),
-              }}
-            >
-              <TrackCarouselCard
-                track={track}
-                index={idx}
-                isActive={idx === activeIndex}
-                isCurrent={currentTrack?.id === track.id}
-                isPlaying={isPlaying}
-                isTrashPlaylist={isTrashPlaylist}
-                isCustomPlaylist={Boolean(isCustomPlaylist)}
-                currentPlaylistName={currentPlaylist?.name}
-                hasImageError={Boolean(imageErrors[track.id])}
-                onImageError={() =>
-                  setImageErrors((prevErrors) => ({ ...prevErrors, [track.id]: true }))
-                }
-                onClick={() => handleCardClick(track, idx)}
-                onPlayDirectly={() => handlePlayDirectly(track)}
-                onToggleFavorite={() => toggleTrackFavorite(track.id)}
-                onAddToQueue={() => addToQueue([track])}
-                onEdit={() => setEditingTrack(track)}
-                onRestore={() => restoreTrack(track.id)}
-                onPurge={() => handlePurge(track)}
-                onRefresh={() => void handleRefreshTrack(track)}
-                onRemoveFromPlaylist={() => removeTrackFromPlaylist(effectivePlaylistId, track.id)}
-                onMoveToTrash={() => handleMoveToTrash(track)}
-              />
-            </motion.div>
-          ))}
+          {tracks.map((track, idx) => {
+            const isNear = Math.abs(idx - activeIndex) <= 6;
+            if (!isNear) {
+              return (
+                <div
+                  key={track.id}
+                  className="w-64 h-80 rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
+                />
+              );
+            }
+            return (
+              <motion.div
+                key={track.id}
+                initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{
+                  ...springMotion.gentle,
+                  delay: getItemDelay(idx),
+                }}
+              >
+                <TrackCarouselCard
+                  track={track}
+                  index={idx}
+                  isActive={idx === activeIndex}
+                  isCurrent={currentTrack?.id === track.id}
+                  isPlaying={isPlaying}
+                  isTrashPlaylist={isTrashPlaylist}
+                  isCustomPlaylist={Boolean(isCustomPlaylist)}
+                  currentPlaylistName={currentPlaylist?.name}
+                  hasImageError={Boolean(imageErrors[track.id])}
+                  onImageError={() =>
+                    setImageErrors((prevErrors) => ({ ...prevErrors, [track.id]: true }))
+                  }
+                  onClick={() => handleCardClick(track, idx)}
+                  onPlayDirectly={() => handlePlayDirectly(track)}
+                  onToggleFavorite={() => toggleTrackFavorite(track.id)}
+                  onAddToQueue={() => addToQueue([track])}
+                  onEdit={() => setEditingTrack(track)}
+                  onRestore={() => restoreTrack(track.id)}
+                  onPurge={() => handlePurge(track)}
+                  onRefresh={() => void handleRefreshTrack(track)}
+                  onRemoveFromPlaylist={() => removeTrackFromPlaylist(effectivePlaylistId, track.id)}
+                  onMoveToTrash={() => handleMoveToTrash(track)}
+                />
+              </motion.div>
+            );
+          })}
         </motion.div>
 
         {/* 翻页指示与微控制器 */}

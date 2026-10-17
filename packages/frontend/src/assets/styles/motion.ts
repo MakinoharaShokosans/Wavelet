@@ -35,9 +35,9 @@ export const springMotion: Record<
    */
   rebound: {
     type: 'spring',
-    stiffness: 280,
-    damping: 24,
-    mass: 1.1,
+    stiffness: 380,
+    damping: 32,
+    mass: 0.85,
   },
 
   /**

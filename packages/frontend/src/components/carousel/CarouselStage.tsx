@@ -21,9 +21,12 @@ export const CarouselStage: React.FC = () => {
     handleWheel,
     snapOffset,
     getItemDelay,
+    dragProps,
+    isDraggingRef,
   } = useCarouselSnap({ totalItems: displayPlaylists.length });
 
   const handleCardClick = (index: number) => {
+    if (isDraggingRef.current) return;
     if (index !== activeIndex) {
       setActiveIndex(index);
     } else {
@@ -74,26 +77,39 @@ export const CarouselStage: React.FC = () => {
         <motion.div
           animate={{ x: snapOffset }}
           transition={hasEntered ? springMotion.rebound : { duration: 0 }}
-          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max"
+          style={{ willChange: 'transform' }}
+          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu"
+          {...dragProps}
         >
-          {displayPlaylists.map((pl, idx) => (
-            <motion.div
-              key={pl.id}
-              initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{
-                ...springMotion.gentle,
-                delay: getItemDelay(idx),
-              }}
-            >
-              <PlaylistCard
-                playlist={pl}
-                isActive={idx === activeIndex}
-                onClick={() => handleCardClick(idx)}
-                index={idx}
-              />
-            </motion.div>
-          ))}
+          {displayPlaylists.map((pl, idx) => {
+            const isNear = Math.abs(idx - activeIndex) <= 6;
+            if (!isNear) {
+              return (
+                <div
+                  key={pl.id}
+                  className="w-64 h-80 rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
+                />
+              );
+            }
+            return (
+              <motion.div
+                key={pl.id}
+                initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{
+                  ...springMotion.gentle,
+                  delay: getItemDelay(idx),
+                }}
+              >
+                <PlaylistCard
+                  playlist={pl}
+                  isActive={idx === activeIndex}
+                  onClick={() => handleCardClick(idx)}
+                  index={idx}
+                />
+              </motion.div>
+            );
+          })}
         </motion.div>
       )}
     </div>
