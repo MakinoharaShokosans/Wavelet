@@ -1,33 +1,75 @@
 import { motion } from 'motion/react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import { springMotion } from '../../assets/styles/motion.js';
 import { useAuthStore } from '../../stores/auth.store.js';
 import { useLibraryStore } from '../../stores/library.store.js';
 import { useUIStore } from '../../stores/ui.store.js';
+import { SvgIcons } from '../common/SvgIcons.js';
 
-// 5 组纯几何手绘连杆艺术音符 SVG 路径
-const ARTISTIC_NOTES = [
-  {
-    id: 'eighth-note',
-    d: 'M9 18V5l6-2v4l-6 2v9a3 3 0 1 1-3-3c1.3 0 2.4.8 2.8 2',
-  },
-  {
-    id: 'beamed-notes',
-    d: 'M7 17V6l10-2v11M7 9l10-2M7 17a2.5 2.5 0 1 1-2.5-2.5c1.1 0 2.1.7 2.4 1.7M17 15a2.5 2.5 0 1 1-2.5-2.5c1.1 0 2.1.7 2.4 1.7',
-  },
-  {
-    id: 'quarter-note',
-    d: 'M10 18V6c0-.6.4-1 1-1h1v13a3 3 0 1 1-3-3c1.3 0 2.4.8 2.8 2',
-  },
-  {
-    id: 'double-beamed',
-    d: 'M6 18V5l12-3v14M6 9l12-3M6 13l12-3M6 18a2.5 2.5 0 1 1-2.5-2.5c1.1 0 2.1.7 2.4 1.7M18 16a2.5 2.5 0 1 1-2.5-2.5c1.1 0 2.1.7 2.4 1.7',
-  },
-  {
-    id: 'curled-clef',
-    d: 'M8 18V4l8 2v10a3 3 0 1 1-3-3c1.3 0 2.4.8 2.8 2M8 8l8 2',
-  },
+// 5 组德国亨勒原典刻铜精度的极简矢量乐符
+const ClefGlyph: React.FC = () => (
+  <svg
+    viewBox="0 0 24 28"
+    width="22"
+    height="26"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="overflow-visible"
+  >
+    <path d="M12 25 C10 25 8.5 23.5 8.5 21.8 C8.5 20 10 18.5 12 18.5 C13.8 18.5 15.2 19.8 15.2 21.5 C15.2 23.5 13.5 25 12 25 Z" fill="currentColor" opacity="0.12" />
+    <path d="M12 2.5 C11 2.5 10 3.5 10 5 C10 7.5 13.5 10 13.5 13 C13.5 15.5 11.5 17 9.5 17 C7.5 17 6 15.5 6 13.5 C6 11 8 9.5 10.5 9.5 C11.5 9.5 12.2 9.8 12.8 10.2 L12.8 3 C12.8 2.7 12.4 2.5 12 2.5 Z M12.8 10.2 L12.8 22 C12.8 23.5 11.5 24.5 10 24.5 C8.5 24.5 7.5 23.5 7.5 22.2 C7.5 21 8.5 20.2 9.8 20.2 C10.6 20.2 11.2 20.6 11.5 21.2" />
+    <circle cx="9.8" cy="22.2" r="1.2" fill="currentColor" />
+  </svg>
+);
+
+const BeamedNotesGlyph: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
+    <line x1="6.8" y1="5.5" x2="19.2" y2="3.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    <line x1="7" y1="5.5" x2="7" y2="17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <line x1="19" y1="3.5" x2="19" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <ellipse cx="5" cy="17" rx="3.2" ry="2.2" transform="rotate(-30 5 17)" fill="currentColor" />
+    <ellipse cx="17" cy="15" rx="3.2" ry="2.2" transform="rotate(-30 17 15)" fill="currentColor" />
+  </svg>
+);
+
+const QuarterNoteGlyph: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
+    <line x1="11.2" y1="4" x2="11.2" y2="17.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <ellipse cx="8.5" cy="17.5" rx="3.4" ry="2.3" transform="rotate(-30 8.5 17.5)" fill="currentColor" />
+  </svg>
+);
+
+const FlagNoteGlyph: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
+    <line x1="8.5" y1="4" x2="8.5" y2="17.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <ellipse cx="6" cy="17.5" rx="3.4" ry="2.3" transform="rotate(-30 6 17.5)" fill="currentColor" />
+    <path
+      d="M8.5 4 C13 7, 15 10.5, 15 13.5 C14 12.8, 12 11.5, 8.5 10.5"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const SixteenthNotesGlyph: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
+    <line x1="6.8" y1="5" x2="19.2" y2="3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <line x1="6.8" y1="8.5" x2="19.2" y2="6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <line x1="7" y1="5" x2="7" y2="17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <line x1="19" y1="3" x2="19" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <ellipse cx="5" cy="17" rx="3.2" ry="2.2" transform="rotate(-30 5 17)" fill="currentColor" />
+    <ellipse cx="17" cy="15" rx="3.2" ry="2.2" transform="rotate(-30 17 15)" fill="currentColor" />
+  </svg>
+);
+
+const REFINED_NOTES = [
+  { id: 'clef', Component: ClefGlyph },
+  { id: 'beamed', Component: BeamedNotesGlyph },
+  { id: 'quarter', Component: QuarterNoteGlyph },
+  { id: 'flag', Component: FlagNoteGlyph },
+  { id: 'sixteenth', Component: SixteenthNotesGlyph },
 ];
 
 export const SplashView: React.FC = () => {
@@ -39,10 +81,10 @@ export const SplashView: React.FC = () => {
   const [dataReady, setDataReady] = useState(false);
 
   useEffect(() => {
-    // 1. 执行音符跳跃动画计时器 (500ms 依次落位)
+    // 1. 高阻尼沉降计时器
     const timer = setTimeout(() => {
       setNotesLanded(true);
-    }, 700);
+    }, 600);
 
     // 2. 静默完成握手与曲库数据预热
     const bootData = async () => {
@@ -61,7 +103,7 @@ export const SplashView: React.FC = () => {
     return () => clearTimeout(timer);
   }, [authenticate, fetchPlaylists, fetchPlaylistTree, refreshStats]);
 
-  // 当音符就位且数据就绪后，停留 1.2 秒给用户感知看板，随后自动分流转场
+  // 当音符就位且数据就绪后，停留给用户感知，随后无缝分流转场
   useEffect(() => {
     if (!notesLanded || !dataReady) return;
 
@@ -72,68 +114,118 @@ export const SplashView: React.FC = () => {
       } else {
         navigate('carousel');
       }
-    }, 1500);
+    }, 1800);
 
     return () => clearTimeout(transitionTimer);
   }, [notesLanded, dataReady, stats, navigate]);
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-[var(--bg-canvas)] select-none">
-      {/* 5 组纯几何跳跃艺术音符 */}
-      <div className="flex items-center gap-6 mb-12">
-        {ARTISTIC_NOTES.map((note, index) => (
-          <motion.div
-            key={note.id}
-            initial={{ y: 28, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{
-              ...springMotion.gentle,
-              delay: index * 0.1,
-            }}
-            className="w-10 h-10 text-[var(--text-primary)] flex items-center justify-center"
-          >
-            <svg viewBox="0 0 24 24" width="36" height="36" className="overflow-visible">
-              <title>艺术音符</title>
-              <path d={note.d} fill="currentColor" />
-            </svg>
-          </motion.div>
-        ))}
+    <div className="w-full h-full flex flex-col items-center justify-center bg-[var(--bg-canvas)] select-none px-6">
+      {/* 顶部 Wavelet 品牌与发烧母带标示 */}
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="flex flex-col items-center gap-1.5 mb-8"
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-lg bg-[var(--text-primary)] text-white flex items-center justify-center shadow-[var(--shadow-xs)]">
+            <SvgIcons name="wave" size={11} />
+          </div>
+          <span className="font-bold text-xs tracking-[0.24em] text-[var(--text-primary)] uppercase">
+            Wavelet
+          </span>
+        </div>
+        <span className="text-[10px] font-mono tracking-widest text-[var(--text-tertiary)] uppercase opacity-80">
+          Bit-Perfect Master Audio Engine
+        </span>
+      </motion.div>
+
+      {/* 核心符号群与 0.75px 声学小波基准线 */}
+      <div className="relative flex items-center justify-center my-4 py-5 w-72">
+        {/* 背景 0.75px 极细声学小波基准线 */}
+        <svg
+          className="absolute w-full h-10 pointer-events-none overflow-visible text-[var(--border-subtle)]"
+          viewBox="0 0 288 40"
+        >
+          <motion.path
+            d="M 0 20 L 60 20 C 90 20, 105 14, 120 14 C 135 14, 150 26, 165 26 C 180 26, 195 20, 225 20 L 288 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="0.75"
+            strokeDasharray="2 3"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 0.7 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+          />
+        </svg>
+
+        {/* 5 个高阻尼落位与微浮沉极简乐符 */}
+        <div className="relative z-10 flex items-center justify-between w-full px-2">
+          {REFINED_NOTES.map(({ id, Component }, index) => (
+            <motion.div
+              key={id}
+              initial={{ y: -10, opacity: 0 }}
+              animate={
+                notesLanded
+                  ? { y: [0, -1.8, 0], opacity: 1 }
+                  : { y: 0, opacity: 1 }
+              }
+              transition={
+                notesLanded
+                  ? {
+                      repeat: Number.POSITIVE_INFINITY,
+                      duration: 3.2,
+                      ease: 'easeInOut',
+                      delay: index * 0.16,
+                    }
+                  : {
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 32,
+                      mass: 0.8,
+                      delay: index * 0.08,
+                    }
+              }
+              className="w-8 h-8 text-[var(--text-primary)] flex items-center justify-center select-none"
+            >
+              <Component />
+            </motion.div>
+          ))}
+        </div>
       </div>
 
-      {/* 4 行阶梯轻盈浮现数据看板 */}
-      <div className="min-h-[120px] flex flex-col items-center justify-center text-center">
+      {/* 画廊级极简数据看板 */}
+      <div className="min-h-[90px] flex flex-col items-center justify-center text-center mt-6">
         {notesLanded && stats && (
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="space-y-2.5 font-medium text-xs text-[var(--text-secondary)]"
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="flex flex-col items-center gap-2 text-xs"
           >
-            <p className="tracking-wide">
-              曲库已收录{' '}
-              <span className="font-semibold text-[var(--text-primary)]">{stats.trackCount}</span>{' '}
-              首母带无损音轨
-            </p>
-            <p className="tracking-wide text-[var(--text-tertiary)]">
-              编排为{' '}
-              <span className="font-semibold text-[var(--text-primary)]">
+            <p className="font-medium text-[var(--text-secondary)] tracking-wide">
+              曲库已就绪{' '}
+              <span className="font-semibold text-[var(--text-primary)] font-mono">
+                {stats.trackCount}
+              </span>{' '}
+              首母带无损音轨 ·{' '}
+              <span className="font-semibold text-[var(--text-primary)] font-mono">
                 {stats.playlistCount}
               </span>{' '}
-              个层级分类与独立歌单
+              个歌单
             </p>
-            <p className="tracking-wide text-[var(--text-tertiary)]">
-              单曲平均时长{' '}
-              <span className="font-semibold text-[var(--text-primary)]">
-                {stats.avgDurationFormatted}
-              </span>
-            </p>
-            <p className="tracking-wide text-[var(--text-tertiary)] text-[11px]">
-              历史累计呈现{' '}
-              <span className="font-semibold text-[var(--text-primary)]">
-                {stats.totalDurationFormatted}
-              </span>{' '}
-              发烧纯净音律
-            </p>
+
+            <div className="flex items-center gap-3 text-[11px] text-[var(--text-tertiary)] font-mono">
+              <span>单曲均长 {stats.avgDurationFormatted}</span>
+              <span className="opacity-40">/</span>
+              <span>历史累计 {stats.totalDurationFormatted}</span>
+            </div>
+
+            <div className="mt-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[10px] font-mono text-[var(--text-secondary)]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-mint)] animate-pulse" />
+              <span>Bit-Perfect 纯净直通已就绪</span>
+            </div>
           </motion.div>
         )}
 
@@ -141,9 +233,9 @@ export const SplashView: React.FC = () => {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-xs text-[var(--text-tertiary)] font-medium"
+            className="text-xs text-[var(--text-tertiary)] font-mono tracking-wide"
           >
-            正在唤醒 Wavelet 本地高保真音频引擎...
+            正在自检本地母带高保真音频硬件直通...
           </motion.div>
         )}
       </div>
