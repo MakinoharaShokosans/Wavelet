@@ -8,10 +8,10 @@ import PlaylistCard from './PlaylistCard.js';
 
 export const CarouselStage: React.FC = () => {
   const { playlists, selectPlaylist } = useLibraryStore();
-  const { navigate, pushBreadcrumb } = useUIStore();
+  const { navigate, resetBreadcrumbs, pushBreadcrumb } = useUIStore();
 
-  // 仅在一级展示根歌单（没有 parentId 的歌单）
-  const rootPlaylists = playlists.filter((p) => !p.parentId);
+  // 仅展示实际可播放的自定义歌单（排除系统默认全部/未集成/收藏/回收歌单，以及分类文件夹容器）
+  const displayPlaylists = playlists.filter((p) => !p.isDefault && !p.isFolder);
 
   const {
     containerRef,
@@ -21,15 +21,31 @@ export const CarouselStage: React.FC = () => {
     handleWheel,
     snapOffset,
     getItemDelay,
-  } = useCarouselSnap({ totalItems: rootPlaylists.length });
+  } = useCarouselSnap({ totalItems: displayPlaylists.length });
 
   const handleCardClick = (index: number) => {
     if (index !== activeIndex) {
       setActiveIndex(index);
     } else {
-      const target = rootPlaylists[index];
+      const target = displayPlaylists[index];
       selectPlaylist(target);
-      pushBreadcrumb({ id: target.id, name: target.name, isFolder: Boolean(target.isFolder) });
+      resetBreadcrumbs();
+
+      // 递归回溯父级目录，构建完整的导航路径 (例如 曲库大厅 > GalGame > Rewrite)
+      const chain: { id: string; name: string; isFolder: boolean }[] = [];
+      let curr: typeof target | undefined = target;
+      while (curr) {
+        chain.unshift({ id: curr.id, name: curr.name, isFolder: Boolean(curr.isFolder) });
+        if (curr.parentId) {
+          curr = playlists.find((p) => p.id === curr?.parentId);
+        } else {
+          curr = undefined;
+        }
+      }
+      for (const item of chain) {
+        pushBreadcrumb(item);
+      }
+
       navigate('playlist-detail');
     }
   };
@@ -49,30 +65,37 @@ export const CarouselStage: React.FC = () => {
       </div>
 
       {/* 横向吸附轮播轨道 */}
-      <motion.div
-        animate={{ x: snapOffset }}
-        transition={hasEntered ? springMotion.rebound : { duration: 0 }}
-        className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max"
-      >
-        {rootPlaylists.map((pl, idx) => (
-          <motion.div
-            key={pl.id}
-            initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{
-              ...springMotion.gentle,
-              delay: getItemDelay(idx),
-            }}
-          >
-            <PlaylistCard
-              playlist={pl}
-              isActive={idx === activeIndex}
-              onClick={() => handleCardClick(idx)}
-              index={idx}
-            />
-          </motion.div>
-        ))}
-      </motion.div>
+      {displayPlaylists.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)] text-xs">
+          <p>暂无自定义歌单</p>
+          <p className="mt-1">可在左侧边栏“分类与收藏”点击【+】创建您的专属歌单</p>
+        </div>
+      ) : (
+        <motion.div
+          animate={{ x: snapOffset }}
+          transition={hasEntered ? springMotion.rebound : { duration: 0 }}
+          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max"
+        >
+          {displayPlaylists.map((pl, idx) => (
+            <motion.div
+              key={pl.id}
+              initial={{ y: defaultDropCascadeConfig.dropInitialY, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{
+                ...springMotion.gentle,
+                delay: getItemDelay(idx),
+              }}
+            >
+              <PlaylistCard
+                playlist={pl}
+                isActive={idx === activeIndex}
+                onClick={() => handleCardClick(idx)}
+                index={idx}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 };
