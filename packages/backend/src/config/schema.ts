@@ -13,6 +13,7 @@ export const StorageConfigSchema = z.object({
   cacheDir: z.string().default('~/.wavelet/cache'),
   logsDir: z.string().default('~/.wavelet/logs'),
   databaseFile: z.string().default('~/.wavelet/wavelet.db'),
+  titleParseMode: z.enum(['smart', 'filename', 'tag']).default('smart'),
 });
 
 export const AudioConfigSchema = z.object({

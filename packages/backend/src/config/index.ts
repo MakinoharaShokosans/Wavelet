@@ -88,6 +88,7 @@ function healConfig(rawObj: Record<string, unknown>, defaults: WaveletConfig): W
           cacheDir: resolveHome(storageResult.data.cacheDir),
           logsDir: resolveHome(storageResult.data.logsDir),
           databaseFile: resolveHome(storageResult.data.databaseFile),
+          titleParseMode: storageResult.data.titleParseMode || defaults.storage.titleParseMode,
         }
       : defaults.storage,
     audio: audioResult.success ? audioResult.data : defaults.audio,

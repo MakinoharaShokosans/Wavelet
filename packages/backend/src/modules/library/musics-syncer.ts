@@ -28,6 +28,36 @@ export const AUDIO_EXTENSIONS = new Set([
   '.webm',
 ]);
 
+export interface ParsedTrackInfo {
+  title: string;
+  artist?: string;
+}
+
+/**
+ * 依据文件名与策略解析歌曲名与歌手 (启动与增量同步自动对齐文件名)
+ */
+export function parseTrackInfoFromFilename(
+  filePath: string,
+  mode: 'smart' | 'filename' | 'tag' = 'smart'
+): ParsedTrackInfo {
+  const base = path.basename(filePath, path.extname(filePath)).trim();
+  if (mode === 'filename') {
+    return { title: base };
+  }
+  if (mode === 'smart') {
+    const separatorIdx = base.indexOf(' - ');
+    if (separatorIdx !== -1) {
+      const artist = base.substring(0, separatorIdx).trim();
+      const title = base.substring(separatorIdx + 3).trim();
+      if (artist && title) {
+        return { title, artist };
+      }
+    }
+    return { title: base };
+  }
+  return { title: base };
+}
+
 /**
  * 常见未完成下载/临时文件后缀与特征前缀过滤 (ISSUE-05)
  */
@@ -150,7 +180,8 @@ export async function processSingleAudioFile(
   trackRepo: TrackRepository,
   playlistRepo: PlaylistRepository,
   taskId: string,
-  lyricsRepo: LyricsRepository = new LyricsRepository()
+  lyricsRepo: LyricsRepository = new LyricsRepository(),
+  titleParseMode?: 'smart' | 'filename' | 'tag'
 ): Promise<{ track?: Track; error?: string }> {
   try {
     // 0. 防误伤巡检 (ISSUE-05): 若新物理文件处于写入/拷贝中，暂缓入库
@@ -244,7 +275,17 @@ export async function processSingleAudioFile(
       // 波形抽取失败不阻断入库
     }
 
-    const title = metadata.title || path.basename(filePath, path.extname(filePath));
+    const config = getConfig();
+    const parseMode = titleParseMode || config.storage.titleParseMode || 'smart';
+    const parsedInfo = parseTrackInfoFromFilename(filePath, parseMode);
+    const title =
+      parseMode === 'tag'
+        ? metadata.title || path.basename(filePath, path.extname(filePath))
+        : parsedInfo.title;
+    const artist =
+      parseMode === 'tag'
+        ? metadata.artist || '未知艺术家'
+        : parsedInfo.artist || metadata.artist || '未知艺术家';
     const now = Date.now();
     const trackId = `trk_${fileHash.slice(0, 16)}`;
 
@@ -263,7 +304,7 @@ export async function processSingleAudioFile(
     const track: Track = {
       id: trackId,
       title,
-      artist: metadata.artist || '未知艺术家',
+      artist,
       album: metadata.album || '未知专辑',
       albumArtist: metadata.albumArtist || metadata.artist || '未知艺术家',
       duration: metadata.duration || 0,
@@ -359,20 +400,29 @@ function resolveTrackMigration(
   filePath: string,
   missingTracksByHash: Map<string, Track>,
   missingTracksById: Map<string, Track>,
-  trackRepo: TrackRepository
+  trackRepo: TrackRepository,
+  titleParseMode: 'smart' | 'filename' | 'tag' = 'smart'
 ): Track | null {
   const stat = fs.statSync(filePath);
   const fileHash = computeFileHash(filePath);
 
   const migratedTrack = missingTracksByHash.get(fileHash);
   if (migratedTrack) {
-    trackRepo.update(migratedTrack.id, {
+    const updateData: Partial<Track> = {
       filePath,
       fileSize: stat.size,
       isMissing: false,
       missingAt: null,
       updatedAt: Date.now(),
-    });
+    };
+    if (titleParseMode !== 'tag') {
+      const parsed = parseTrackInfoFromFilename(filePath, titleParseMode);
+      updateData.title = parsed.title;
+      if (parsed.artist) updateData.artist = parsed.artist;
+      migratedTrack.title = parsed.title;
+      if (parsed.artist) migratedTrack.artist = parsed.artist;
+    }
+    trackRepo.update(migratedTrack.id, updateData);
     migratedTrack.filePath = filePath;
     migratedTrack.fileSize = stat.size;
     migratedTrack.isMissing = false;
@@ -395,13 +445,21 @@ function resolveTrackMigration(
 
   const existingByHash = trackRepo.findByHash(fileHash);
   if (existingByHash && !fs.existsSync(existingByHash.filePath)) {
-    trackRepo.update(existingByHash.id, {
+    const updateData: Partial<Track> = {
       filePath,
       fileSize: stat.size,
       isMissing: false,
       missingAt: null,
       updatedAt: Date.now(),
-    });
+    };
+    if (titleParseMode !== 'tag') {
+      const parsed = parseTrackInfoFromFilename(filePath, titleParseMode);
+      updateData.title = parsed.title;
+      if (parsed.artist) updateData.artist = parsed.artist;
+      existingByHash.title = parsed.title;
+      if (parsed.artist) existingByHash.artist = parsed.artist;
+    }
+    trackRepo.update(existingByHash.id, updateData);
     existingByHash.filePath = filePath;
     existingByHash.fileSize = stat.size;
     existingByHash.isMissing = false;
@@ -434,6 +492,7 @@ export interface SyncMusicsResult {
 export interface SyncMusicsOptions {
   force?: boolean;
   resyncMetadata?: boolean;
+  titleParseMode?: 'smart' | 'filename' | 'tag';
 }
 
 export async function syncMusicsDirectory(
@@ -441,6 +500,7 @@ export async function syncMusicsDirectory(
   options?: SyncMusicsOptions
 ): Promise<SyncMusicsResult> {
   const config = getConfig();
+  const parseMode = options?.titleParseMode || config.storage.titleParseMode || 'smart';
   const targetDir = dirPath ? resolveHome(dirPath) : config.storage.libraryDir;
   const trackRepo = new TrackRepository();
   const playlistRepo = new PlaylistRepository();
@@ -529,6 +589,37 @@ export async function syncMusicsDirectory(
         );
       }
 
+      // 自动文件名标题校准 (每次启动与同步时生效)
+      const parsedInfo = parseTrackInfoFromFilename(filePath, parseMode);
+      if (parseMode !== 'tag') {
+        const targetTitle = parsedInfo.title;
+        const targetArtist = parsedInfo.artist || existing.artist;
+        if (
+          existing.title !== targetTitle ||
+          (parsedInfo.artist && existing.artist !== targetArtist)
+        ) {
+          trackRepo.update(existing.id, {
+            title: targetTitle,
+            artist: targetArtist,
+            updatedAt: Date.now(),
+          });
+          logger.info(
+            {
+              trackId: existing.id,
+              oldTitle: existing.title,
+              newTitle: targetTitle,
+              oldArtist: existing.artist,
+              newArtist: targetArtist,
+              filePath,
+            },
+            '[曲库同步] 自动根据物理文件名校准歌曲名与歌手'
+          );
+          existing.title = targetTitle;
+          existing.artist = targetArtist;
+          refreshedCount++;
+        }
+      }
+
       // ISSUE-06: 外部标签与元数据增量热同步 (mtime 或尺寸变动，或显式要求全量 resync)
       const stat = fs.statSync(filePath);
       const isDirty = stat.mtimeMs > existing.updatedAt || stat.size !== existing.fileSize;
@@ -568,10 +659,18 @@ export async function syncMusicsDirectory(
             });
           }
 
-          const title = metadata.title || path.basename(filePath, path.extname(filePath));
+          const title =
+            parseMode === 'tag'
+              ? metadata.title || path.basename(filePath, path.extname(filePath))
+              : parsedInfo.title;
+          const artist =
+            parseMode === 'tag'
+              ? metadata.artist || '未知艺术家'
+              : parsedInfo.artist || metadata.artist || '未知艺术家';
+
           trackRepo.update(existing.id, {
             title,
-            artist: metadata.artist || '未知艺术家',
+            artist,
             album: metadata.album || '未知专辑',
             albumArtist: metadata.albumArtist || metadata.artist || '未知艺术家',
             duration: metadata.duration || existing.duration,
@@ -586,7 +685,7 @@ export async function syncMusicsDirectory(
             updatedAt: Date.now(),
           });
           existing.title = title;
-          existing.artist = metadata.artist || '未知艺术家';
+          existing.artist = artist;
           existing.album = metadata.album || '未知专辑';
           existing.albumArtist = metadata.albumArtist || metadata.artist || '未知艺术家';
           existing.fileSize = stat.size;
@@ -621,7 +720,8 @@ export async function syncMusicsDirectory(
       filePath,
       missingTracksByHash,
       missingTracksById,
-      trackRepo
+      trackRepo,
+      parseMode
     );
     if (migrated) {
       if (migrated.isMissing) {
@@ -638,7 +738,8 @@ export async function syncMusicsDirectory(
       trackRepo,
       playlistRepo,
       `${taskId}_${i}`,
-      lyricsRepo
+      lyricsRepo,
+      parseMode
     );
     if (res.track) {
       importedTracks.push(res.track);

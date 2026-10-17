@@ -13,6 +13,7 @@ import {
   findSidecarCover,
   findSidecarLyrics,
 } from '../../library/sidecar-detector.js';
+import { parseTrackInfoFromFilename } from '../../library/musics-syncer.js';
 import { computeFileHash } from '../../transcoder/flac-standardizer.js';
 import { cacheCoverArt, parseAudioMetadata } from '../../transcoder/metadata-writer.js';
 
@@ -309,10 +310,21 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      const title = metadata.title || path.basename(track.filePath, path.extname(track.filePath));
+      const config = getConfig();
+      const parseMode = config.storage.titleParseMode || 'smart';
+      const parsedInfo = parseTrackInfoFromFilename(track.filePath, parseMode);
+      const title =
+        parseMode === 'tag'
+          ? metadata.title || path.basename(track.filePath, path.extname(track.filePath))
+          : parsedInfo.title;
+      const artist =
+        parseMode === 'tag'
+          ? metadata.artist || '未知艺术家'
+          : parsedInfo.artist || metadata.artist || '未知艺术家';
+
       trackRepo.update(track.id, {
         title,
-        artist: metadata.artist || '未知艺术家',
+        artist,
         album: metadata.album || '未知专辑',
         albumArtist: metadata.albumArtist || metadata.artist || '未知艺术家',
         duration: metadata.duration || track.duration,

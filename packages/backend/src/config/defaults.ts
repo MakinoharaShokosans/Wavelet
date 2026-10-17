@@ -58,6 +58,7 @@ export function getDefaultConfig(): WaveletConfig {
       cacheDir: resolveHome('~/.wavelet/cache'),
       logsDir: resolveHome('~/.wavelet/logs'),
       databaseFile: resolveHome('~/.wavelet/wavelet.db'),
+      titleParseMode: 'smart',
     },
     audio: {
       outputMode: 'web',

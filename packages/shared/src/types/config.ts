@@ -25,6 +25,8 @@ export interface StorageConfig {
   logsDir: string;
   /** SQLite 嵌入式数据库主文件路径 (默认 ~/.wavelet/wavelet.db) */
   databaseFile: string;
+  /** 歌曲标题解析策略: 'smart' 智能拆分歌手与歌名 | 'filename' 完整文件名 | 'tag' 优先音频内嵌标签 (默认 'smart') */
+  titleParseMode?: 'smart' | 'filename' | 'tag';
 }
 
 export interface AudioConfig {

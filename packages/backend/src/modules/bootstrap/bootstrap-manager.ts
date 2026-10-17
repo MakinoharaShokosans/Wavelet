@@ -69,9 +69,17 @@ export class BootstrapManager {
     integrityGuard.cleanTempDirectory();
     const audit = integrityGuard.auditMissingFiles();
 
-    // 7.1 专属根目录 musics 便携曲库自动增量同步
+    // 7.1 专属根目录 musics 便携曲库自动增量同步与文件名标题校验
     try {
-      await syncMusicsDirectory(config.storage.libraryDir);
+      const syncResult = await syncMusicsDirectory(config.storage.libraryDir);
+      logger.info(
+        {
+          imported: syncResult.imported,
+          refreshed: syncResult.refreshed,
+          migrated: syncResult.migrated,
+        },
+        '[BootstrapManager] 启动曲库自动增量同步与文件名标题对齐就绪'
+      );
     } catch (err) {
       logger.warn({ err }, '[BootstrapManager] 启动曲库自动同步失败，跳过');
     }
