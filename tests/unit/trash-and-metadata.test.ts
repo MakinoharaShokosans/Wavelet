@@ -49,7 +49,7 @@ describe('Unit Test: Trash Playlist, Track Metadata & Deletion Safeguards', () =
     const trash = playlistRepo.findTrash();
     expect(trash).not.toBeNull();
     expect(trash?.id).toBe('default_trash');
-    expect(trash?.name).toBe('回收歌单');
+    expect(trash?.name).toBe('回收');
     expect(trash?.isDefault).toBe(true);
 
     const track = createDummyTrack('trk_mig_test');

@@ -53,7 +53,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
               <span className="text-[var(--accent-coral)]">
                 <SvgIcons name="heart-filled" size={14} />
               </span>
-              <span>心动收藏</span>
+              <span>收藏</span>
             </>
           ) : (
             <>

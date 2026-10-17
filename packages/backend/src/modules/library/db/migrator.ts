@@ -89,11 +89,11 @@ const migrations: Migration[] = [
         );
       `);
 
-      // 6. 初始化默认歌单 ("全部音乐")
+      // 6. 初始化默认歌单 ("全部")
       const now = Date.now();
       const insertDefaultStmt = db.prepare(`
         INSERT OR IGNORE INTO playlists (id, name, description, is_default, track_count, created_at, updated_at)
-        VALUES ('default_all_tracks', '全部音乐', '系统默认原始曲库', 1, 0, ?, ?);
+        VALUES ('default_all_tracks', '全部', '系统默认原始曲库', 1, 0, ?, ?);
       `);
       insertDefaultStmt.run(now, now);
     },
@@ -121,7 +121,7 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_tracks_play_stats ON tracks(play_count DESC, last_played_at DESC);
       `);
 
-      // 2. 初始化预置系统歌单: 未集成歌单与心动收藏
+      // 2. 初始化预置系统歌单: 散落与收藏
       const now = Date.now();
       const insertDefaultStmt = db.prepare(`
         INSERT OR IGNORE INTO playlists (id, name, description, is_default, parent_id, is_folder, track_count, created_at, updated_at)
@@ -129,12 +129,12 @@ const migrations: Migration[] = [
       `);
       insertDefaultStmt.run(
         'default_unintegrated_tracks',
-        '未集成歌单',
+        '散落',
         '新导入待归类音乐',
         now,
         now
       );
-      insertDefaultStmt.run('default_favorites', '心动收藏', '标记为喜爱的音乐精选', now, now);
+      insertDefaultStmt.run('default_favorites', '收藏', '标记为喜爱的音乐精选', now, now);
     },
   },
   {
@@ -147,13 +147,13 @@ const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_tracks_trashed ON tracks(is_trashed);
       `);
 
-      // 2. 初始化预置系统歌单: 回收歌单
+      // 2. 初始化预置系统歌单: 回收
       const now = Date.now();
       const insertDefaultStmt = db.prepare(`
         INSERT OR IGNORE INTO playlists (id, name, description, is_default, parent_id, is_folder, track_count, created_at, updated_at)
         VALUES (?, ?, ?, 1, NULL, 0, 0, ?, ?);
       `);
-      insertDefaultStmt.run('default_trash', '回收歌单', '已删除待清理或恢复的音乐', now, now);
+      insertDefaultStmt.run('default_trash', '回收', '已删除待清理或恢复的音乐', now, now);
     },
   },
   {
@@ -166,6 +166,17 @@ const migrations: Migration[] = [
         ALTER TABLE tracks ADD COLUMN missing_at INTEGER;
         CREATE INDEX IF NOT EXISTS idx_tracks_missing ON tracks(is_missing);
       `);
+    },
+  },
+  {
+    version: 6,
+    name: '006_short_default_playlist_names',
+    up: (db) => {
+      // 简化系统默认歌单为极简 2 字规范：全部、收藏、散落、回收
+      db.prepare(`UPDATE playlists SET name = '全部' WHERE id = 'default_all_tracks';`).run();
+      db.prepare(`UPDATE playlists SET name = '收藏' WHERE id = 'default_favorites';`).run();
+      db.prepare(`UPDATE playlists SET name = '散落' WHERE id = 'default_unintegrated_tracks';`).run();
+      db.prepare(`UPDATE playlists SET name = '回收' WHERE id = 'default_trash';`).run();
     },
   },
 ];

@@ -16,8 +16,10 @@ import TrackListView from './TrackListView.js';
 
 function getPlaylistTypeBadge(pl: Playlist): string {
   if (pl.isFolder) return '分类目录';
-  if (pl.id === 'default_favorites') return '心动收藏';
-  if (pl.id === 'default_trash') return '系统回收站';
+  if (pl.id === 'default_favorites') return '收藏';
+  if (pl.id === 'default_trash') return '回收';
+  if (pl.id === 'default_unintegrated_tracks') return '散落';
+  if (pl.id === 'default_all_tracks') return '全部';
   if (pl.isDefault) return '核心音库';
   return '自定义歌单';
 }
