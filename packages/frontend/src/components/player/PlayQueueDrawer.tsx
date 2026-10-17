@@ -62,55 +62,62 @@ export const PlayQueueDrawer: React.FC = () => {
 
             {/* 队列曲目列表 */}
             <div className="flex-1 overflow-y-auto py-3 space-y-1">
-              {queue.map((track, idx) => {
-                const isCurrent = idx === currentIndex;
+              <AnimatePresence initial={false}>
+                {queue.map((track, idx) => {
+                  const isCurrent = idx === currentIndex;
 
-                return (
-                  <div
-                    key={`${track.id}-${idx}`}
-                    className={`group flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
-                      isCurrent
-                        ? 'bg-[var(--bg-subtle)] font-medium text-[var(--text-primary)]'
-                        : 'hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => void playTrack(track, queue)}
-                      className="flex items-center gap-2.5 min-w-0 flex-1 text-left bg-transparent border-0 p-0 cursor-pointer text-inherit"
+                  return (
+                    <motion.div
+                      layout="position"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.18 }}
+                      key={`${track.id}-${idx}`}
+                      className={`group flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors ${
+                        isCurrent
+                          ? 'bg-[var(--bg-subtle)] font-medium text-[var(--text-primary)]'
+                          : 'hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)]'
+                      }`}
                     >
-                      <span className="w-5 text-center text-xs text-[var(--text-tertiary)] font-mono">
-                        {isCurrent && isPlaying ? (
-                          <span className="text-[var(--accent-mint)] flex justify-center">
-                            <SvgIcons name="wave" size={13} />
-                          </span>
-                        ) : (
-                          idx + 1
-                        )}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void playTrack(track, queue)}
+                        className="flex items-center gap-2.5 min-w-0 flex-1 text-left bg-transparent border-0 p-0 cursor-pointer text-inherit"
+                      >
+                        <span className="w-5 text-center text-xs text-[var(--text-tertiary)] font-mono">
+                          {isCurrent && isPlaying ? (
+                            <span className="text-[var(--accent-mint)] flex justify-center">
+                              <SvgIcons name="wave" size={13} />
+                            </span>
+                          ) : (
+                            idx + 1
+                          )}
+                        </span>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold truncate">{track.title}</p>
-                        <p className="text-[10px] text-[var(--text-tertiary)] truncate">
-                          {track.artist}
-                        </p>
-                      </div>
-                    </button>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold truncate">{track.title}</p>
+                          <p className="text-[10px] text-[var(--text-tertiary)] truncate">
+                            {track.artist}
+                          </p>
+                        </div>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeFromQueue(idx);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 text-[var(--text-tertiary)] hover:text-[var(--accent-coral)] p-1 transition-opacity cursor-pointer"
-                      title="移出队列"
-                    >
-                      <SvgIcons name="close" size={13} />
-                    </button>
-                  </div>
-                );
-              })}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFromQueue(idx);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-[var(--text-tertiary)] hover:text-[var(--accent-coral)] p-1 transition-opacity cursor-pointer"
+                        title="移出队列"
+                      >
+                        <SvgIcons name="close" size={13} />
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
 
               {queue.length === 0 && (
                 <div className="py-20 text-center text-xs text-[var(--text-tertiary)]">

@@ -58,9 +58,19 @@ export const FloatingCard: React.FC<ExtendedFloatingCardProps> = ({
       <AnimatePresence>
         {isVisible && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.94 }}
+            initial={{
+              opacity: 0,
+              scale: 0.94,
+              y: placement === 'top' ? 3 : placement === 'bottom' ? -3 : 0,
+              x: placement === 'left' ? 3 : placement === 'right' ? -3 : 0,
+            }}
+            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+            exit={{
+              opacity: 0,
+              scale: 0.94,
+              y: placement === 'top' ? 3 : placement === 'bottom' ? -3 : 0,
+              x: placement === 'left' ? 3 : placement === 'right' ? -3 : 0,
+            }}
             transition={springMotion.stiff}
             className={`absolute z-50 pointer-events-none whitespace-nowrap bg-white text-[var(--text-primary)] text-xs font-medium px-2.5 py-1.5 rounded-xl shadow-[var(--shadow-hover)] border border-[var(--border-subtle)] ${getPlacementClasses(placement)}`}
           >

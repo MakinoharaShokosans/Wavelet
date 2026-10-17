@@ -129,28 +129,28 @@ export const BackupModal: React.FC = () => {
     navigate('carousel');
   };
 
-  if (!isBackupModalOpen) return null;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* 背景毛玻璃遮罩 */}
+      {isBackupModalOpen && (
         <motion.div
+          key="backup-modal-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm select-none"
           onClick={() => (!isExporting && !isImporting ? setBackupModalOpen(false) : null)}
-        />
-
-        {/* 极简白质弹窗卡片 */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 12 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 12 }}
-          transition={springMotion.stiff}
-          className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-[var(--shadow-hover)] border border-[var(--border-subtle)] z-10 flex flex-col max-h-[90vh] overflow-y-auto"
         >
+          {/* 极简白质弹窗卡片 */}
+          <motion.div
+            key="backup-modal-card"
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            transition={springMotion.stiff}
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-[var(--shadow-hover)] border border-[var(--border-subtle)] z-10 flex flex-col max-h-[90vh] overflow-y-auto"
+          >
           {/* 顶部标题与关闭按钮 */}
           <div className="flex items-center justify-between pb-4 border-b border-[var(--border-subtle)] mb-6">
             <div className="flex items-center gap-3">
@@ -434,8 +434,9 @@ export const BackupModal: React.FC = () => {
             </div>
           )}
         </motion.div>
-      </div>
-    </AnimatePresence>
+      </motion.div>
+    )}
+  </AnimatePresence>
   );
 };
 

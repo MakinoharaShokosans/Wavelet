@@ -1,4 +1,5 @@
 import type { Track } from '@wavelet/shared';
+import { motion } from 'motion/react';
 import type React from 'react';
 import { useState } from 'react';
 import { useLibraryStore } from '../../stores/library.store.js';
@@ -114,8 +115,16 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
 
   return (
     <>
-      <div
-        className={`group relative flex items-center justify-between px-4 py-3 rounded-2xl select-none transition-all duration-150 ${
+      <motion.div
+        layout="position"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          duration: 0.2,
+          delay: Math.min(index * 0.015, 0.2),
+          ease: 'easeOut',
+        }}
+        className={`group relative flex items-center justify-between px-4 py-3 rounded-2xl select-none transition-colors duration-150 ${
           track.isMissing ? 'opacity-60 grayscale-[35%]' : ''
         } ${
           isCurrent
@@ -167,7 +176,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
 
         {/* 右侧悬浮交互小岛 (常态隐藏，Hover 平滑浮出) */}
         <div className="flex items-center gap-3">
-          <div className="hidden group-hover:flex items-center gap-1.5 transition-all">
+          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none group-hover:pointer-events-auto">
             {/* 非回收站状态下的标准按钮 */}
             {!isTrashPlaylist && (
               <>
@@ -332,7 +341,7 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
             title={track.isMissing ? '状态: 物理文件失联' : `状态: ${track.healthyStatus}`}
           />
         </div>
-      </div>
+      </motion.div>
 
       <TrackEditModal
         isOpen={isEditModalOpen}

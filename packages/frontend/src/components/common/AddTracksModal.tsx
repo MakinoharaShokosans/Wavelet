@@ -231,12 +231,22 @@ export const AddTracksModal: React.FC<AddTracksModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 select-none">
+        <motion.div
+          key="add-tracks-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 select-none"
+        >
           <motion.div
+            key="add-tracks-modal-card"
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={springMotion.gentle}
+            onClick={(e) => e.stopPropagation()}
             className="w-full max-w-2xl bg-white rounded-3xl border border-[var(--border-subtle)] shadow-[var(--shadow-hover)] overflow-hidden flex flex-col max-h-[85vh]"
           >
             {/* 顶栏头部 */}
@@ -356,7 +366,7 @@ export const AddTracksModal: React.FC<AddTracksModalProps> = ({
               </div>
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

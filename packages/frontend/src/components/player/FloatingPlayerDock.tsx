@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useState } from 'react';
 import { springMotion } from '../../assets/styles/motion.js';
@@ -94,44 +94,65 @@ export const FloatingPlayerDock: React.FC = () => {
         }`}
       >
         <div className="relative w-11 h-11 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex items-center justify-center overflow-hidden flex-shrink-0 shadow-[var(--shadow-xs)]">
-          {currentTrack?.hasEmbeddedCover ? (
-            <img
-              src={trackService.getCoverUrl(currentTrack.id)}
-              alt={trackTitle}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div
-              className={`w-6 h-6 rounded-full bg-white flex items-center justify-center text-[var(--text-secondary)] ${
-                isPlaying ? 'animate-spin' : ''
-              }`}
-              style={{ animationDuration: '4s' }}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentTrack?.id || 'empty-cover'}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ duration: 0.2 }}
+              className="w-full h-full flex items-center justify-center"
             >
-              <SvgIcons name="music" size={13} />
-            </div>
-          )}
+              {currentTrack?.hasEmbeddedCover ? (
+                <img
+                  src={trackService.getCoverUrl(currentTrack.id)}
+                  alt={trackTitle}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div
+                  className={`w-6 h-6 rounded-full bg-white flex items-center justify-center text-[var(--text-secondary)] ${
+                    isPlaying ? 'animate-spin' : ''
+                  }`}
+                  style={{ animationDuration: '4s' }}
+                >
+                  <SvgIcons name="music" size={13} />
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <h4 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent-mint)] transition-colors">
-              {trackTitle}
-            </h4>
-            {currentTrack && (
-              <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-semibold bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0">
-                {Math.round(currentTrack.sampleRate / 1000)}k/{currentTrack.bitDepth}b
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">
-            {sourcePlaylistName && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[10px] font-medium flex-shrink-0 max-w-[100px]">
-                <SvgIcons name="music" size={10} />
-                <span className="truncate">{sourcePlaylistName}</span>
-              </span>
-            )}
-            <span className="truncate">{trackArtist}</span>
-          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentTrack?.id || 'empty-info'}
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -3 }}
+              transition={{ duration: 0.18 }}
+            >
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-xs font-bold text-[var(--text-primary)] truncate group-hover:text-[var(--accent-mint)] transition-colors">
+                  {trackTitle}
+                </h4>
+                {currentTrack && (
+                  <span className="text-[9px] px-1.5 py-0.2 rounded font-mono font-semibold bg-[var(--bg-elevated)] text-[var(--text-tertiary)] flex-shrink-0">
+                    {Math.round(currentTrack.sampleRate / 1000)}k/{currentTrack.bitDepth}b
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] truncate mt-0.5">
+                {sourcePlaylistName && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[10px] font-medium flex-shrink-0 max-w-[100px]">
+                    <SvgIcons name="music" size={10} />
+                    <span className="truncate">{sourcePlaylistName}</span>
+                  </span>
+                )}
+                <span className="truncate">{trackArtist}</span>
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </button>
 

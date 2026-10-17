@@ -1,4 +1,5 @@
 import type { Playlist, Track } from '@wavelet/shared';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useState } from 'react';
 import { playlistService } from '../../services/playlist.service.js';
@@ -401,10 +402,31 @@ const TracksRenderer: React.FC<TracksRendererProps> = ({
       </div>
     );
   }
-  if (viewMode === 'cards') {
-    return <TrackCarouselView tracks={tracks} playlistId={playlist.id} />;
-  }
-  return <TrackListView tracks={tracks} playlistId={playlist.id} />;
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      {viewMode === 'cards' ? (
+        <motion.div
+          key="cards"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.2 }}
+        >
+          <TrackCarouselView tracks={tracks} playlistId={playlist.id} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="list"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.2 }}
+        >
+          <TrackListView tracks={tracks} playlistId={playlist.id} />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 };
 
 export const PlaylistDetailView: React.FC = () => {
@@ -532,46 +554,55 @@ export const PlaylistDetailView: React.FC = () => {
   const subItemCount = playlists.filter((p) => p.parentId === currentPlaylist.id).length;
 
   return (
-    <div className="w-full h-full flex flex-col px-8 pb-32 overflow-y-auto select-none">
-      {/* 歌单主头图区 */}
-      <div className="flex items-start justify-between mb-8 pt-2">
-        <PlaylistInfoBlock
+    <>
+      <motion.div
+        key={currentPlaylist.id}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        className="w-full h-full flex flex-col px-8 pb-32 overflow-y-auto select-none"
+      >
+        {/* 歌单主头图区 */}
+        <div className="flex items-start justify-between mb-8 pt-2">
+          <PlaylistInfoBlock
+            playlist={currentPlaylist}
+            trackCount={displayTrackCount}
+            subItemCount={subItemCount}
+            tracks={currentPlaylistTracks}
+            onCopyFirstTrackCover={() => copyPlaylistCoverFromTrack(currentPlaylist.id)}
+          />
+          <PlaylistActions
+            playlist={currentPlaylist}
+            hasTracks={currentPlaylistTracks.length > 0}
+            hasMissingTracks={currentPlaylistTracks.some((t) => t.isMissing)}
+            onPruneMissing={handlePruneMissing}
+            onPlayAll={handlePlayAll}
+            onShufflePlayAll={handleShufflePlayAll}
+            onEditPlaylist={() => handleOpenEditModal(currentPlaylist)}
+            onDeletePlaylist={() => handleDeletePlaylist(currentPlaylist)}
+            onEmptyTrash={handleEmptyTrash}
+            onAddTracks={() => setIsAddTracksOpen(true)}
+            onCreateSubPlaylist={() => handleOpenCreateSubModal(currentPlaylist.id)}
+            isRefreshing={isSyncing}
+            onRefreshLibrary={handleSyncMusics}
+            viewMode={playlistViewMode}
+            onViewModeChange={setPlaylistViewMode}
+          />
+        </div>
+
+        {/* 核心互斥内容分流渲染 */}
+        <TracksRenderer
           playlist={currentPlaylist}
-          trackCount={displayTrackCount}
-          subItemCount={subItemCount}
           tracks={currentPlaylistTracks}
-          onCopyFirstTrackCover={() => copyPlaylistCoverFromTrack(currentPlaylist.id)}
-        />
-        <PlaylistActions
-          playlist={currentPlaylist}
-          hasTracks={currentPlaylistTracks.length > 0}
-          hasMissingTracks={currentPlaylistTracks.some((t) => t.isMissing)}
-          onPruneMissing={handlePruneMissing}
-          onPlayAll={handlePlayAll}
-          onShufflePlayAll={handleShufflePlayAll}
-          onEditPlaylist={() => handleOpenEditModal(currentPlaylist)}
-          onDeletePlaylist={() => handleDeletePlaylist(currentPlaylist)}
-          onEmptyTrash={handleEmptyTrash}
+          isLoading={isLoading}
+          viewMode={playlistViewMode}
           onAddTracks={() => setIsAddTracksOpen(true)}
           onCreateSubPlaylist={() => handleOpenCreateSubModal(currentPlaylist.id)}
-          isRefreshing={isSyncing}
-          onRefreshLibrary={handleSyncMusics}
-          viewMode={playlistViewMode}
-          onViewModeChange={setPlaylistViewMode}
+          onEditSubPlaylist={handleOpenEditModal}
+          onDeleteSubPlaylist={handleDeletePlaylist}
         />
-      </div>
-
-      {/* 核心互斥内容分流渲染 */}
-      <TracksRenderer
-        playlist={currentPlaylist}
-        tracks={currentPlaylistTracks}
-        isLoading={isLoading}
-        viewMode={playlistViewMode}
-        onAddTracks={() => setIsAddTracksOpen(true)}
-        onCreateSubPlaylist={() => handleOpenCreateSubModal(currentPlaylist.id)}
-        onEditSubPlaylist={handleOpenEditModal}
-        onDeleteSubPlaylist={handleDeletePlaylist}
-      />
+      </motion.div>
 
       {/* 歌单/分类目录创建与编辑弹窗 */}
       <PlaylistModal
@@ -590,7 +621,7 @@ export const PlaylistDetailView: React.FC = () => {
           existingTrackIds={currentPlaylistTracks.map((t) => t.id)}
         />
       )}
-    </div>
+    </>
   );
 };
 

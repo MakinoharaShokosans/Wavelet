@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { springMotion } from '../../assets/styles/motion.js';
@@ -162,21 +162,32 @@ export const PlayerStage: React.FC = () => {
             }
           />
 
-          <div className="w-full max-w-md text-center space-y-2">
-            <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] truncate">
-              {currentTrack.title}
-            </h2>
-            <div className="flex flex-col items-center gap-1.5">
-              <p className="text-sm font-medium text-[var(--text-tertiary)] truncate">
-                {currentTrack.artist} · {currentTrack.album}
-              </p>
-              {sourcePlaylistName && (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-xs font-medium shadow-[var(--shadow-xs)]">
-                  <SvgIcons name="music" size={12} />
-                  <span>所在歌单：{sourcePlaylistName}</span>
+          <div className="w-full max-w-md text-center">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentTrack.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-2"
+              >
+                <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)] truncate">
+                  {currentTrack.title}
+                </h2>
+                <div className="flex flex-col items-center gap-1.5">
+                  <p className="text-sm font-medium text-[var(--text-tertiary)] truncate">
+                    {currentTrack.artist} · {currentTrack.album}
+                  </p>
+                  {sourcePlaylistName && (
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-xs font-medium shadow-[var(--shadow-xs)]">
+                      <SvgIcons name="music" size={12} />
+                      <span>所在歌单：{sourcePlaylistName}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* 60fps Catmull-Rom 贝塞尔流体音波 */}

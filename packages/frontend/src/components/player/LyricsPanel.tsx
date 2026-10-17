@@ -65,7 +65,7 @@ export const LyricsPanel: React.FC<LyricsPanelProps> = ({ lyricsText = '', class
         behavior: 'smooth',
       });
     }
-  }, []);
+  }, [activeIndex]);
 
   if (lines.length === 0) {
     return (

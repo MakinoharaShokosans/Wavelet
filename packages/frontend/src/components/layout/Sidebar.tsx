@@ -1,5 +1,5 @@
 import type { Playlist } from '@wavelet/shared';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { springMotion } from '../../assets/styles/motion.js';
@@ -99,7 +99,13 @@ const SidebarTreeNode: React.FC<SidebarTreeNodeProps> = ({
             }`}
             title={isExpanded ? '收起分类目录' : '展开分类目录'}
           >
-            <SvgIcons name={isExpanded ? 'chevron-down' : 'chevron-right'} size={11} />
+            <motion.span
+              animate={{ rotate: isExpanded ? 90 : 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="flex items-center justify-center"
+            >
+              <SvgIcons name="chevron-right" size={11} />
+            </motion.span>
           </button>
         ) : (
           <span className="w-4 mr-1.5 flex-shrink-0" />
@@ -138,23 +144,31 @@ const SidebarTreeNode: React.FC<SidebarTreeNodeProps> = ({
         </button>
       </div>
 
-      {playlist.isFolder && isExpanded && children.length > 0 && (
-        <div className="space-y-0.5 mt-0.5">
-          {children.map((child) => (
-            <SidebarTreeNode
-              key={child.id}
-              playlist={child}
-              allPlaylists={allPlaylists}
-              currentPlaylistId={currentPlaylistId}
-              expandedFolders={expandedFolders}
-              isSidebarCollapsed={isSidebarCollapsed}
-              depth={depth + 1}
-              onToggleFolder={onToggleFolder}
-              onSelectPlaylist={onSelectPlaylist}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {playlist.isFolder && isExpanded && children.length > 0 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="overflow-hidden space-y-0.5 mt-0.5"
+          >
+            {children.map((child) => (
+              <SidebarTreeNode
+                key={child.id}
+                playlist={child}
+                allPlaylists={allPlaylists}
+                currentPlaylistId={currentPlaylistId}
+                expandedFolders={expandedFolders}
+                isSidebarCollapsed={isSidebarCollapsed}
+                depth={depth + 1}
+                onToggleFolder={onToggleFolder}
+                onSelectPlaylist={onSelectPlaylist}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

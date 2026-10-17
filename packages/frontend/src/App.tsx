@@ -1,4 +1,4 @@
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useEffect } from 'react';
 import CarouselStage from './components/carousel/CarouselStage.js';
@@ -67,38 +67,74 @@ export default function App(): React.JSX.Element {
   const renderCurrentView = () => {
     switch (currentView) {
       case 'splash':
-        return <SplashView />;
+        return (
+          <motion.div
+            key="splash"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="w-full h-full"
+          >
+            <SplashView />
+          </motion.div>
+        );
 
       case 'zero':
         return (
-          <AppLayout showSidebar={false}>
-            <ZeroStateView />
-          </AppLayout>
+          <motion.div
+            key="zero"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="w-full h-full"
+          >
+            <AppLayout showSidebar={false}>
+              <ZeroStateView />
+            </AppLayout>
+          </motion.div>
         );
 
       case 'carousel':
-        return (
-          <AppLayout>
-            <CarouselStage />
-            <FloatingPlayerDock />
-            <PlayQueueDrawer />
-          </AppLayout>
-        );
-
       case 'playlist-detail':
         return (
-          <AppLayout>
-            <PlaylistDetailView />
+          <AppLayout key="main-app">
+            <AnimatePresence mode="wait" initial={false}>
+              {currentView === 'carousel' ? (
+                <motion.div
+                  key="carousel"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="w-full h-full"
+                >
+                  <CarouselStage />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="playlist-detail"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                  className="w-full h-full"
+                >
+                  <PlaylistDetailView />
+                </motion.div>
+              )}
+            </AnimatePresence>
             <FloatingPlayerDock />
             <PlayQueueDrawer />
           </AppLayout>
         );
 
       case 'player-stage':
-        return <PlayerStage />;
+        return <PlayerStage key="player-stage" />;
 
       default:
-        return <SplashView />;
+        return <SplashView key="splash" />;
     }
   };
 

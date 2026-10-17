@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useLibraryStore } from '../../stores/library.store.js';
 import { useUIStore } from '../../stores/ui.store.js';
@@ -28,30 +29,40 @@ export const Breadcrumb: React.FC = () => {
 
   return (
     <nav className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)] py-2 select-none">
-      {breadcrumbStack.map((item, idx) => {
-        const isLast = idx === breadcrumbStack.length - 1;
+      <AnimatePresence mode="popLayout" initial={false}>
+        {breadcrumbStack.map((item, idx) => {
+          const isLast = idx === breadcrumbStack.length - 1;
 
-        return (
-          <div key={item.id} className="flex items-center gap-1.5">
-            {idx > 0 && (
-              <span className="text-[var(--text-tertiary)] opacity-60">
-                <SvgIcons name="chevron-right" size={14} />
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => handleItemClick(idx)}
-              className={`hover:text-[var(--text-primary)] transition-colors ${
-                isLast
-                  ? 'font-semibold text-[var(--text-primary)] cursor-default'
-                  : 'hover:underline cursor-pointer'
-              }`}
+          return (
+            <motion.div
+              key={item.id}
+              layout="position"
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -6 }}
+              transition={{ duration: 0.16 }}
+              className="flex items-center gap-1.5"
             >
-              {item.name}
-            </button>
-          </div>
-        );
-      })}
+              {idx > 0 && (
+                <span className="text-[var(--text-tertiary)] opacity-60">
+                  <SvgIcons name="chevron-right" size={14} />
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => handleItemClick(idx)}
+                className={`hover:text-[var(--text-primary)] transition-colors ${
+                  isLast
+                    ? 'font-semibold text-[var(--text-primary)] cursor-default'
+                    : 'hover:underline cursor-pointer'
+                }`}
+              >
+                {item.name}
+              </button>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
     </nav>
   );
 };

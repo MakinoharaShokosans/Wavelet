@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { SvgIcons } from '../common/SvgIcons.js';
 
@@ -73,13 +73,24 @@ export const VinylRecord: React.FC<VinylRecordProps> = ({ isPlaying, coverUrl, s
 
         {/* 唱片中心彩胶封面 */}
         <div className="w-28 h-28 rounded-full bg-white border-4 border-[#242528] overflow-hidden flex items-center justify-center shadow-inner relative z-10">
-          {coverUrl ? (
-            <img src={coverUrl} alt="Vinyl Cover" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--text-primary)]">
-              <SvgIcons name="music" size={32} />
-            </div>
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={coverUrl || 'no-cover'}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="w-full h-full flex items-center justify-center"
+            >
+              {coverUrl ? (
+                <img src={coverUrl} alt="Vinyl Cover" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--text-primary)]">
+                  <SvgIcons name="music" size={32} />
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
 
           {/* 中心主轴孔 */}
           <div className="absolute w-4 h-4 rounded-full bg-[#18191B] border-2 border-white/60 shadow-md" />
