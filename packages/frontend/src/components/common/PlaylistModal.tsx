@@ -110,6 +110,8 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
   const [description, setDescription] = useState('');
   const [isFolder, setIsFolder] = useState(false);
   const [parentId, setParentId] = useState<string>('');
+  const [isParentDropdownOpen, setIsParentDropdownOpen] = useState(false);
+  const parentDropdownRef = useRef<HTMLDivElement>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverBase64, setCoverBase64] = useState<string | null>(null);
   const [sourceTrackId, setSourceTrackId] = useState<string | null>(null);
@@ -124,9 +126,11 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
   const availableFolders = playlists.filter(
     (p) => p.isFolder && (!playlist || p.id !== playlist.id)
   );
+  const selectedFolder = availableFolders.find((f) => f.id === parentId);
 
   useEffect(() => {
     if (!isOpen) return;
+    setIsParentDropdownOpen(false);
     if (playlist) {
       setName(playlist.name || '');
       setDescription(playlist.description || '');
@@ -157,6 +161,27 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
     setError(null);
     setIsSubmitting(false);
   }, [isOpen, playlist, defaultParentId]);
+
+  // 点击外部或按 ESC 自动收起父级目录自定义下拉
+  useEffect(() => {
+    if (!isParentDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (parentDropdownRef.current && !parentDropdownRef.current.contains(e.target as Node)) {
+        setIsParentDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsParentDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isParentDropdownOpen]);
 
   // 剪贴板 Ctrl+V 直接粘贴图片
   useEffect(() => {
@@ -275,11 +300,11 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 10 }}
             transition={springMotion.gentle}
-            className="bg-white rounded-3xl shadow-[var(--shadow-card)] border border-[var(--border-subtle)] w-full max-w-md overflow-hidden flex flex-col"
+            className="bg-white rounded-3xl shadow-[var(--shadow-card)] border border-[var(--border-subtle)] w-full max-w-md flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 顶栏 */}
-            <div className="px-6 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between rounded-t-3xl">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--text-primary)]">
                   <SvgIcons name={isFolder ? 'folder' : 'list'} size={18} />
@@ -401,26 +426,134 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                 </div>
 
                 {availableFolders.length > 0 && (
-                  <div>
+                  <div className="relative" ref={parentDropdownRef}>
                     <label
-                      htmlFor="pl-parent-select"
+                      id="pl-parent-select-label"
                       className="block text-xs font-semibold text-[var(--text-secondary)] mb-1"
                     >
                       父级目录
                     </label>
-                    <select
+
+                    {/* 现代纯白 SVG 下拉选择按钮 */}
+                    <button
+                      type="button"
                       id="pl-parent-select"
-                      value={parentId}
-                      onChange={(e) => setParentId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-primary)] focus:bg-white transition-colors cursor-pointer"
+                      aria-haspopup="listbox"
+                      aria-expanded={isParentDropdownOpen}
+                      onClick={() => setIsParentDropdownOpen((prev) => !prev)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl border bg-[var(--bg-subtle)] text-xs text-[var(--text-primary)] transition-all cursor-pointer flex items-center justify-between group ${
+                        isParentDropdownOpen
+                          ? 'border-[var(--text-primary)] bg-white shadow-[var(--shadow-xs)]'
+                          : 'border-[var(--border-subtle)] hover:border-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)]'
+                      }`}
                     >
-                      <option value="">(根目录 / 无父级)</option>
-                      {availableFolders.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          📁 {f.name}
-                        </option>
-                      ))}
-                    </select>
+                      <div className="flex items-center gap-2 truncate">
+                        {selectedFolder ? (
+                          <>
+                            <span className="text-[var(--text-secondary)] flex-shrink-0 flex items-center">
+                              <SvgIcons name="folder" size={15} />
+                            </span>
+                            <span className="font-medium text-[var(--text-primary)] truncate">
+                              {selectedFolder.name}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] mx-1 flex-shrink-0" />
+                            <span className="text-[var(--text-secondary)]">
+                              (根目录 / 无父级)
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <span
+                        className={`text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)] transition-transform duration-200 flex-shrink-0 ml-2 ${
+                          isParentDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      >
+                        <SvgIcons name="chevron-down" size={13} />
+                      </span>
+                    </button>
+
+                    {/* 下拉浮层列表 */}
+                    <AnimatePresence>
+                      {isParentDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                          transition={{ duration: 0.15, ease: 'easeOut' }}
+                          className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-[var(--border-subtle)] p-1 max-h-52 overflow-y-auto space-y-0.5"
+                          role="listbox"
+                        >
+                          {/* 根目录选项 */}
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={!parentId}
+                            onClick={() => {
+                              setParentId('');
+                              setIsParentDropdownOpen(false);
+                            }}
+                            className={`w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                              !parentId
+                                ? 'bg-[var(--bg-subtle)] font-medium text-[var(--text-primary)]'
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] mx-1 flex-shrink-0" />
+                              <span>(根目录 / 无父级)</span>
+                            </div>
+                            {!parentId && (
+                              <span className="text-[var(--text-primary)] flex-shrink-0">
+                                <SvgIcons name="check" size={13} />
+                              </span>
+                            )}
+                          </button>
+
+                          {/* 目录文件夹选项 */}
+                          {availableFolders.map((f) => {
+                            const isSelected = parentId === f.id;
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                role="option"
+                                aria-selected={isSelected}
+                                onClick={() => {
+                                  setParentId(f.id);
+                                  setIsParentDropdownOpen(false);
+                                }}
+                                className={`w-full px-3 py-2 rounded-xl text-left text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-[var(--bg-subtle)] font-medium text-[var(--text-primary)]'
+                                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                  <span className="text-[var(--text-secondary)] flex-shrink-0 flex items-center">
+                                    <SvgIcons name="folder" size={14} />
+                                  </span>
+                                  <span className="truncate">{f.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                  <span className="text-[10px] text-[var(--text-tertiary)] font-mono">
+                                    {f.trackCount || 0} 首
+                                  </span>
+                                  {isSelected && (
+                                    <span className="text-[var(--text-primary)]">
+                                      <SvgIcons name="check" size={13} />
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
               </div>
