@@ -9,6 +9,7 @@ import type { SvgIconName } from '../../types/component.js';
 import { FloatingCard } from '../common/FloatingCard.js';
 import { PlaylistModal } from '../common/PlaylistModal.js';
 import { SvgIcons } from '../common/SvgIcons.js';
+import { playlistService } from '../../services/playlist.service.js';
 
 function getDefaultPlaylistIcon(plId: string): { name: SvgIconName; color: string } {
   if (plId === 'default_favorites') return { name: 'heart-filled', color: 'var(--accent-coral)' };
@@ -38,12 +39,16 @@ const SidebarTreeNode: React.FC<SidebarTreeNodeProps> = ({
   onToggleFolder,
   onSelectPlaylist,
 }) => {
+  const [coverError, setCoverError] = useState(false);
   const children = allPlaylists.filter((p) => p.parentId === playlist.id);
   const isExpanded = Boolean(expandedFolders[playlist.id]);
   const isSelected = currentPlaylistId === playlist.id;
 
+  useEffect(() => {
+    setCoverError(false);
+  }, [playlist.coverImagePath]);
+
   if (isSidebarCollapsed) {
-    const iconName = playlist.isFolder ? 'folder' : 'music';
     return (
       <button
         type="button"
@@ -56,7 +61,18 @@ const SidebarTreeNode: React.FC<SidebarTreeNodeProps> = ({
         }`}
       >
         <FloatingCard
-          trigger={<SvgIcons name={iconName} size={18} />}
+          trigger={
+            playlist.coverImagePath && !coverError ? (
+              <img
+                src={playlistService.getCoverUrl(playlist.id)}
+                alt=""
+                onError={() => setCoverError(true)}
+                className="w-5 h-5 rounded-[4px] object-cover flex-shrink-0 border border-[var(--border-subtle)]/60 shadow-[var(--shadow-xs)]"
+              />
+            ) : (
+              <SvgIcons name="music" size={18} />
+            )
+          }
           content={`${playlist.name} ${playlist.isFolder ? `(${children.length} 个子项)` : `(${playlist.trackCount})`}`}
           placement="right"
         />
@@ -94,10 +110,19 @@ const SidebarTreeNode: React.FC<SidebarTreeNodeProps> = ({
           onClick={() => onSelectPlaylist(playlist)}
           className="flex items-center justify-between min-w-0 flex-1 text-left cursor-pointer bg-transparent border-0 p-0 focus:outline-hidden"
         >
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            <span className="flex-shrink-0 text-[var(--text-secondary)] group-hover/item:text-[var(--text-primary)]">
-              <SvgIcons name={playlist.isFolder ? 'folder' : 'music'} size={15} />
-            </span>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {playlist.coverImagePath && !coverError ? (
+              <img
+                src={playlistService.getCoverUrl(playlist.id)}
+                alt=""
+                onError={() => setCoverError(true)}
+                className="w-[18px] h-[18px] rounded-[4px] object-cover flex-shrink-0 border border-[var(--border-subtle)]/60 shadow-[var(--shadow-xs)]"
+              />
+            ) : (
+              <span className="flex-shrink-0 text-[var(--text-secondary)] group-hover/item:text-[var(--text-primary)]">
+                <SvgIcons name="music" size={15} />
+              </span>
+            )}
             <span className="text-sm font-medium truncate flex-1">{playlist.name}</span>
           </div>
 
