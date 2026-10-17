@@ -32,9 +32,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   const subtitle =
     playlist.description && playlist.description !== playlist.name
       ? playlist.description
-      : isFolder
-      ? '母带子歌单目录'
-      : `${playlist.trackCount || 0} 首音轨 · 发烧母带`;
+      : '';
 
   return (
     <motion.div
@@ -59,24 +57,15 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     >
       {/* 顶部标签与指示微标 */}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wider flex items-center gap-1.5">
+        <span className="text-[11px] font-semibold text-[var(--text-tertiary)] flex items-center">
           {isFolder ? (
-            <>
-              <SvgIcons name="folder" size={14} />
-              <span>目录分类</span>
-            </>
+            <SvgIcons name="folder" size={14} />
           ) : isFavorites ? (
-            <>
-              <span className="text-[var(--accent-coral)]">
-                <SvgIcons name="heart-filled" size={14} />
-              </span>
-              <span>收藏</span>
-            </>
+            <span className="text-[var(--accent-coral)]">
+              <SvgIcons name="heart-filled" size={14} />
+            </span>
           ) : (
-            <>
-              <SvgIcons name="music" size={14} />
-              <span>{isDefault ? '系统根歌单' : '独立歌单'}</span>
-            </>
+            <SvgIcons name="music" size={14} />
           )}
         </span>
 
@@ -159,9 +148,11 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
         <h3 className="font-semibold text-base text-[var(--text-primary)] tracking-tight truncate group-hover:text-black transition-colors">
           {playlist.name}
         </h3>
-        <p className="text-xs text-[var(--text-tertiary)] truncate">
-          {subtitle}
-        </p>
+        {subtitle ? (
+          <p className="text-xs text-[var(--text-tertiary)] truncate">
+            {subtitle}
+          </p>
+        ) : null}
       </div>
     </motion.div>
   );

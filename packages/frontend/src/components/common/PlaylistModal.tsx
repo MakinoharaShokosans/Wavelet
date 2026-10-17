@@ -312,11 +312,9 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                 <h2 className="font-bold text-base text-[var(--text-primary)]">
                   {isEdit
                     ? isFolder
-                      ? '编辑分类目录'
+                      ? '编辑分类'
                       : '编辑歌单'
-                    : defaultParentId
-                      ? '新建内部歌单'
-                      : '新建歌单'}
+                    : '新建歌单'}
                 </h2>
               </div>
               <button
@@ -403,10 +401,10 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-[var(--text-secondary)]">
-                      分类目录文件夹
+                      分类目录
                     </span>
                     <span className="text-[11px] text-[var(--text-tertiary)]">
-                      作为层级目录，仅收纳子歌单，不直接包含歌曲
+                      仅收纳子歌单，不直接包含歌曲
                     </span>
                   </div>
                   <button

@@ -159,10 +159,10 @@ export const BackupModal: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-semibold text-[var(--text-primary)]">
-                  曲库全量备份与迁移
+                  导入导出
                 </h3>
                 <p className="text-xs text-[var(--text-tertiary)]">
-                  物理音频、歌单、心动收藏与元数据全量解耦打包，跨机器一键还原
+                  导出曲库与歌单，或从备份包恢复
                 </p>
               </div>
             </div>
@@ -188,7 +188,7 @@ export const BackupModal: React.FC = () => {
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              导出全量备份 (.zip)
+              导出 (.zip)
             </button>
             <button
               type="button"
@@ -199,7 +199,7 @@ export const BackupModal: React.FC = () => {
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
-              从备份包还原 (.zip)
+              导入 (.zip)
             </button>
           </div>
 
@@ -416,7 +416,7 @@ export const BackupModal: React.FC = () => {
                     onClick={handleFinishAndNavigate}
                     className="w-full py-2.5 rounded-xl bg-[var(--text-primary)] text-white text-xs font-medium shadow-sm hover:opacity-95 transition-opacity cursor-pointer"
                   >
-                    前往曲库大厅聆听
+                    进入曲库
                   </button>
                 </div>
               )}

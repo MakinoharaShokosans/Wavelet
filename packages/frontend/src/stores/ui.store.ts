@@ -39,7 +39,7 @@ export interface UIState {
 
 const initialBreadcrumb: BreadcrumbItem = {
   id: 'root',
-  name: '曲库大厅',
+  name: '曲库',
   isFolder: true,
 };
 

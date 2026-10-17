@@ -301,23 +301,23 @@ export const Sidebar: React.FC = () => {
             {isSidebarCollapsed ? (
               <FloatingCard
                 trigger={<SvgIcons name="grid" size={18} />}
-                content="曲库大厅"
+                content="曲库"
                 placement="right"
               />
             ) : (
               <>
                 <SvgIcons name="grid" size={18} />
-                <span className="text-sm font-medium">曲库大厅</span>
+                <span className="text-sm font-medium">曲库</span>
               </>
             )}
           </button>
         </div>
 
-        {/* 系统默认歌单 (全部、心动、未集成、回收) */}
+        {/* 系统默认歌单 (全部、收藏、散落、回收) */}
         <div className="space-y-1 mb-6">
           {!isSidebarCollapsed && (
             <div className="text-[11px] font-semibold text-[var(--text-tertiary)] px-3 mb-2 tracking-wider uppercase">
-              核心音库
+              音库
             </div>
           )}
           {defaultPlaylists.map((pl) => {
@@ -364,13 +364,13 @@ export const Sidebar: React.FC = () => {
           {!isSidebarCollapsed && (
             <div className="flex items-center justify-between px-3 mb-2">
               <span className="text-[11px] font-semibold text-[var(--text-tertiary)] tracking-wider uppercase">
-                分类与收藏
+                歌单
               </span>
               <button
                 type="button"
                 onClick={() => setIsCreatePlaylistOpen(true)}
                 className="w-5 h-5 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                title="新建歌单或分类目录"
+                title="新建歌单"
               >
                 <SvgIcons name="plus" size={13} />
               </button>
@@ -395,7 +395,7 @@ export const Sidebar: React.FC = () => {
           ) : (
             !isSidebarCollapsed && (
               <div className="px-3 py-2 text-[11px] text-[var(--text-tertiary)]">
-                暂无自定义歌单，点击上方 + 新建
+                暂无歌单
               </div>
             )
           )}
@@ -404,7 +404,7 @@ export const Sidebar: React.FC = () => {
 
       <PlaylistModal isOpen={isCreatePlaylistOpen} onClose={() => setIsCreatePlaylistOpen(false)} />
 
-      {/* 底部功能区：备份与跨机器迁移 */}
+      {/* 底部功能区：导入与导出 */}
       <div className="pt-2 border-t border-[var(--border-subtle)]">
         <button
           type="button"
@@ -416,13 +416,13 @@ export const Sidebar: React.FC = () => {
           {isSidebarCollapsed ? (
             <FloatingCard
               trigger={<SvgIcons name="archive" size={18} />}
-              content="曲库备份与迁移"
+              content="导入导出"
               placement="right"
             />
           ) : (
             <>
               <SvgIcons name="archive" size={18} />
-              <span className="text-sm font-medium">备份与迁移</span>
+              <span className="text-sm font-medium">导入导出</span>
             </>
           )}
         </button>

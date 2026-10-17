@@ -16,20 +16,18 @@ import TrackCarouselView from './TrackCarouselView.js';
 import TrackListView from './TrackListView.js';
 
 function getPlaylistTypeBadge(pl: Playlist): string {
-  if (pl.isFolder) return '分类目录';
+  if (pl.isFolder) return '分类';
   if (pl.id === 'default_favorites') return '收藏';
   if (pl.id === 'default_trash') return '回收';
   if (pl.id === 'default_unintegrated_tracks') return '散落';
   if (pl.id === 'default_all_tracks') return '全部';
-  if (pl.isDefault) return '核心音库';
-  return '自定义歌单';
+  if (pl.isDefault) return '音库';
+  return '歌单';
 }
 
 function getPlaylistDescription(pl: Playlist): string {
   if (pl.description) return pl.description;
-  if (pl.isFolder) return '纯分类目录文件夹，仅承载下级歌单';
-  if (pl.id === 'default_trash') return '包含已删除待清理或恢复的音乐，本地物理文件完好保留';
-  return '发烧级母带音轨集';
+  return '';
 }
 
 function getPlaylistIconConfig(pl: Playlist): { name: SvgIconName; color: string } {
@@ -131,27 +129,29 @@ const PlaylistInfoBlock: React.FC<PlaylistInfoBlockProps> = ({
           </span>
           {playlist.isFolder ? (
             <span className="text-xs text-[var(--text-tertiary)]">
-              {subItemCount ?? 0} 个子歌单 · 共 {subItemTotalTracks ?? 0} 首曲目
+              {subItemCount ?? 0} 个歌单 · {subItemTotalTracks ?? 0} 首
             </span>
           ) : (
-            <span className="text-xs text-[var(--text-tertiary)]">{trackCount} 首音乐</span>
+            <span className="text-xs text-[var(--text-tertiary)]">{trackCount} 首</span>
           )}
         </div>
 
         <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
           {playlist.name || '未命名歌单'}
         </h1>
-        <p className="text-xs text-[var(--text-tertiary)] max-w-lg">{description}</p>
+        {description ? (
+          <p className="text-xs text-[var(--text-tertiary)] max-w-lg">{description}</p>
+        ) : null}
 
         {canCopyCover && onCopyFirstTrackCover && (
           <button
             type="button"
             onClick={onCopyFirstTrackCover}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] text-[11px] font-medium text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5"
-            title="将歌单中第一首包含封面的曲目封面拷贝为歌单封面"
+            title="将第一首包含封面的曲目封面设为歌单封面"
           >
             <SvgIcons name="image" size={12} />
-            <span>拷贝首曲封面为歌单封面</span>
+            <span>提取首曲封面</span>
           </button>
         )}
       </div>
@@ -180,7 +180,7 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onChange }) =
           <SvgIcons name="list" size={15} />
         </button>
       }
-      content="无边框列表模式"
+      content="列表"
     />
 
     <FloatingCard
@@ -197,7 +197,7 @@ const ViewModeToggle: React.FC<ViewModeToggleProps> = ({ viewMode, onChange }) =
           <SvgIcons name="grid" size={15} />
         </button>
       }
-      content="封面卡片轮播模式"
+      content="卡片"
     />
   </div>
 );
@@ -255,7 +255,7 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 text-[var(--accent-coral)] border border-red-200 text-xs font-semibold hover:bg-[var(--accent-coral)] hover:text-white transition-all duration-150 cursor-pointer shadow-[var(--shadow-xs)]"
           >
             <SvgIcons name="trash" size={14} />
-            <span>清空回收站</span>
+            <span>清空</span>
           </button>
         )}
         <ViewModeToggle viewMode={viewMode} onChange={onViewModeChange} />
@@ -271,10 +271,9 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
             type="button"
             onClick={onPlayAllInFolder}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--text-primary)] text-white text-xs font-semibold shadow-[var(--shadow-xs)] hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer"
-            title="一键将该分类下的所有子歌单歌曲加入播放队列并开播"
           >
             <SvgIcons name="play" size={14} />
-            <span>播放全部分类 ({totalFolderTracks} 首)</span>
+            <span>播放全部</span>
           </button>
         )}
 
@@ -285,7 +284,7 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] transition-all duration-150 cursor-pointer shadow-[var(--shadow-xs)]"
           >
             <SvgIcons name="plus" size={14} />
-            <span>新建内部歌单</span>
+            <span>新建歌单</span>
           </button>
         )}
 
@@ -295,20 +294,20 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
               type="button"
               onClick={onEditPlaylist}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-[var(--shadow-xs)]"
-              title="编辑分类目录信息"
+              title="编辑分类"
             >
               <SvgIcons name="edit" size={14} />
-              <span>编辑目录</span>
+              <span>编辑</span>
             </button>
 
             <button
               type="button"
               onClick={onDeletePlaylist}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--accent-coral)] border border-[var(--border-subtle)] text-xs font-semibold hover:bg-red-50 transition-all cursor-pointer shadow-[var(--shadow-xs)]"
-              title="删除分类目录"
+              title="删除分类"
             >
               <SvgIcons name="trash" size={14} />
-              <span>删除目录</span>
+              <span>删除</span>
             </button>
           </>
         )}
@@ -323,7 +322,6 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
           type="button"
           onClick={onAddTracks}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] hover:border-[var(--text-secondary)] transition-all cursor-pointer shadow-[var(--shadow-xs)]"
-          title="从曲库中批量选择添加歌曲"
         >
           <SvgIcons name="plus" size={14} />
           <span>添加歌曲</span>
@@ -357,10 +355,9 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
           type="button"
           onClick={onPruneMissing}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-xs font-semibold hover:bg-amber-500/20 transition-all cursor-pointer shadow-[var(--shadow-xs)]"
-          title="一键彻底清理曲库所有失联曲目"
         >
           <SvgIcons name="alert" size={14} />
-          <span>清理失联曲目</span>
+          <span>清理失联</span>
         </button>
       )}
 
@@ -370,7 +367,6 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
             type="button"
             onClick={onEditPlaylist}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-[var(--shadow-xs)]"
-            title="编辑歌单信息"
           >
             <SvgIcons name="edit" size={14} />
             <span>编辑</span>
@@ -380,7 +376,6 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
             type="button"
             onClick={onDeletePlaylist}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--accent-coral)] border border-[var(--border-subtle)] text-xs font-semibold hover:bg-red-50 transition-all cursor-pointer shadow-[var(--shadow-xs)]"
-            title="删除歌单"
           >
             <SvgIcons name="trash" size={14} />
             <span>删除</span>
@@ -394,12 +389,11 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
           onClick={onRefreshLibrary}
           disabled={isRefreshing}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] transition-all cursor-pointer shadow-[var(--shadow-xs)] disabled:opacity-50"
-          title="重新扫描本地 musics 目录并热刷新外部修改的标签与封面"
         >
           <span className={isRefreshing ? 'animate-spin flex items-center' : 'flex items-center'}>
             <SvgIcons name="refresh" size={14} />
           </span>
-          <span>{isRefreshing ? '正在同步...' : '刷新曲库'}</span>
+          <span>{isRefreshing ? '正在同步...' : '刷新'}</span>
         </button>
       )}
 

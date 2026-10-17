@@ -59,19 +59,16 @@ export const CarouselStage: React.FC = () => {
       onWheel={handleWheel}
       className="w-full h-full flex flex-col justify-center overflow-hidden relative select-none"
     >
-      {/* 顶部轻量引导说明 */}
+      {/* 顶部标题 */}
       <div className="text-center mb-8">
-        <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">音律大厅</h2>
-        <p className="text-xs text-[var(--text-secondary)] mt-1">
-          滚轮横向滑动切换 · 点击卡片展开内部歌曲与分类
-        </p>
+        <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">曲库</h2>
       </div>
 
       {/* 横向吸附轮播轨道 */}
       {displayPlaylists.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)] text-xs">
-          <p>暂无自定义歌单</p>
-          <p className="mt-1">可在左侧边栏“分类与收藏”点击【+】创建您的专属歌单</p>
+          <p>暂无歌单</p>
+          <p className="mt-1">点击左侧【+】新建歌单</p>
         </div>
       ) : (
         <motion.div

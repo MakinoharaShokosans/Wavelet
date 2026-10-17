@@ -449,17 +449,6 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
 
   return (
     <div className="w-full flex flex-col space-y-4">
-      {/* 顶部轻量引导说明 */}
-      <div className="flex items-center justify-between flex-wrap gap-2 px-1">
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-subtle)] text-[11px] text-[var(--text-secondary)] border border-[var(--border-subtle)] w-max">
-          <SvgIcons name="grid" size={13} />
-          <span>3D 唱片轮播 · 共 {tracks.length} 首</span>
-        </div>
-        <p className="text-xs text-[var(--text-secondary)]">
-          滚轮横向滑动切换 · 点击卡片展开音乐大舞台
-        </p>
-      </div>
-
       {/* 3D 轮播主舞台视窗 */}
       <div
         ref={containerRef}

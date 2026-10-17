@@ -32,7 +32,6 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
   // 筛选属于当前目录的子级歌单与子目录
   const children = playlists.filter((p) => p.parentId === folder.id);
   const totalItems = children.length + (onCreateSubPlaylist ? 1 : 0);
-  const totalTracks = children.reduce((acc, c) => acc + (c.trackCount || 0), 0);
 
   const {
     containerRef,
@@ -70,26 +69,9 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
 
   return (
     <div className="w-full flex flex-col space-y-4">
-      {/* 极简母带画廊工具栏 */}
-      <div className="flex items-center justify-between flex-wrap gap-3 px-1 pt-1 pb-1">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-subtle)] text-xs text-[var(--text-secondary)] border border-[var(--border-subtle)] shadow-[var(--shadow-xs)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-medium text-[var(--text-primary)]">母带分类目录</span>
-            <span className="text-[var(--text-tertiary)]">·</span>
-            <span>{children.length} 个子歌单</span>
-            <span className="text-[var(--text-tertiary)]">·</span>
-            <span className="font-mono font-medium text-[var(--text-primary)]">{totalTracks} 首曲目</span>
-          </div>
-          <span className="text-xs text-[var(--text-tertiary)] hidden sm:inline">
-            {viewMode === 'carousel'
-              ? '支持横向滚轮与拖拽切换 · 点击聚焦展开'
-              : '平铺网格画廊全览 · 点击直接进入'}
-          </span>
-        </div>
-
-        {/* 视图模式切换 */}
-        {children.length > 0 && (
+      {/* 视图切换工具栏 */}
+      {children.length > 0 && (
+        <div className="flex items-center justify-end px-1 pt-1 pb-1">
           <div className="flex items-center rounded-xl bg-[var(--bg-subtle)] p-0.5 border border-[var(--border-subtle)]">
             <FloatingCard
               trigger={
@@ -105,7 +87,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                   <SvgIcons name="music" size={14} />
                 </button>
               }
-              content="3D 画廊轮播模式"
+              content="轮播"
             />
             <FloatingCard
               trigger={
@@ -121,11 +103,11 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                   <SvgIcons name="grid" size={14} />
                 </button>
               }
-              content="网格平铺画廊模式"
+              content="网格"
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {children.length > 0 ? (
         <AnimatePresence mode="wait">
@@ -209,12 +191,9 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                       <div className="w-14 h-14 rounded-2xl bg-[var(--bg-subtle)] group-hover:bg-white group-hover:scale-110 flex items-center justify-center shadow-[var(--shadow-xs)] transition-all">
                         <SvgIcons name="plus" size={24} />
                       </div>
-                      <div className="text-center space-y-1">
-                        <span className="text-sm font-bold block text-[var(--text-primary)]">
-                          新建内部歌单
-                        </span>
-                        <span className="text-xs text-[var(--text-tertiary)] block">
-                          在此分类目录下创建
+                      <div className="text-center">
+                        <span className="text-sm font-semibold block text-[var(--text-primary)]">
+                          新建歌单
                         </span>
                       </div>
                     </motion.button>
@@ -296,12 +275,9 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                   <div className="w-14 h-14 rounded-2xl bg-[var(--bg-subtle)] group-hover:bg-white group-hover:scale-110 flex items-center justify-center shadow-[var(--shadow-xs)] transition-all">
                     <SvgIcons name="plus" size={24} />
                   </div>
-                  <div className="text-center space-y-1">
-                    <span className="text-sm font-bold block text-[var(--text-primary)]">
-                      新建内部歌单
-                    </span>
-                    <span className="text-xs text-[var(--text-tertiary)] block">
-                      在此分类目录下创建
+                  <div className="text-center">
+                    <span className="text-sm font-semibold block text-[var(--text-primary)]">
+                      新建歌单
                     </span>
                   </div>
                 </button>
@@ -315,10 +291,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
             <SvgIcons name="folder" size={24} />
           </div>
           <p className="text-xs text-[var(--text-secondary)] font-medium">
-            当前分类目录尚未编入子歌单
-          </p>
-          <p className="text-[11px] text-[var(--text-tertiary)] mt-1">
-            可新建下级子歌单或通过左侧管理进行归类编排
+            暂无歌单
           </p>
           {onCreateSubPlaylist && (
             <button
@@ -327,7 +300,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
               className="mt-4 flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--text-primary)] text-white text-xs font-semibold shadow-[var(--shadow-xs)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
             >
               <SvgIcons name="plus" size={14} />
-              <span>新建首个子歌单</span>
+              <span>新建歌单</span>
             </button>
           )}
         </div>
