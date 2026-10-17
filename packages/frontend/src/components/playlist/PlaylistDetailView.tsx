@@ -43,6 +43,8 @@ interface PlaylistInfoBlockProps {
   playlist: Playlist;
   trackCount: number;
   subItemCount?: number;
+  subItemTotalTracks?: number;
+  subPlaylists?: Playlist[];
   tracks?: Track[];
   onCopyFirstTrackCover?: () => void;
 }
@@ -51,6 +53,8 @@ const PlaylistInfoBlock: React.FC<PlaylistInfoBlockProps> = ({
   playlist,
   trackCount,
   subItemCount,
+  subItemTotalTracks,
+  subPlaylists,
   tracks,
   onCopyFirstTrackCover,
 }) => {
@@ -64,18 +68,60 @@ const PlaylistInfoBlock: React.FC<PlaylistInfoBlockProps> = ({
     playlist.id !== 'default_trash' &&
     tracks?.some((t) => t.hasEmbeddedCover);
 
+  const subPlaylistsWithCover = playlist.isFolder
+    ? (subPlaylists || []).filter((p) => Boolean(p.coverImagePath))
+    : [];
+
+  const renderCover = () => {
+    if (hasCover) {
+      return (
+        <img
+          src={playlistService.getCoverUrl(playlist.id)}
+          alt={playlist.name || '歌单封面'}
+          className="w-full h-full object-cover"
+        />
+      );
+    }
+
+    if (playlist.isFolder && subPlaylistsWithCover.length > 0) {
+      if (subPlaylistsWithCover.length === 1) {
+        return (
+          <img
+            src={playlistService.getCoverUrl(subPlaylistsWithCover[0].id)}
+            alt={subPlaylistsWithCover[0].name}
+            className="w-full h-full object-cover"
+          />
+        );
+      }
+
+      const mosaicItems =
+        subPlaylistsWithCover.length >= 4
+          ? subPlaylistsWithCover.slice(0, 4)
+          : subPlaylistsWithCover.length === 3
+          ? [...subPlaylistsWithCover, subPlaylistsWithCover[0]]
+          : [...subPlaylistsWithCover, ...subPlaylistsWithCover];
+
+      return (
+        <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1px] bg-[var(--border-subtle)]">
+          {mosaicItems.map((item, idx) => (
+            <img
+              key={`${item.id}-${idx}`}
+              src={playlistService.getCoverUrl(item.id)}
+              alt={item.name}
+              className="w-full h-full object-cover"
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return <SvgIcons name={iconConfig.name} size={36} color={iconConfig.color} />;
+  };
+
   return (
     <div className="flex items-center gap-6">
       <div className="w-24 h-24 rounded-3xl bg-white border border-[var(--border-subtle)] shadow-[var(--shadow-card)] flex items-center justify-center text-[var(--text-primary)] overflow-hidden flex-shrink-0">
-        {hasCover ? (
-          <img
-            src={playlistService.getCoverUrl(playlist.id)}
-            alt={playlist.name || '歌单封面'}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <SvgIcons name={iconConfig.name} size={36} color={iconConfig.color} />
-        )}
+        {renderCover()}
       </div>
 
       <div className="space-y-1.5">
@@ -85,7 +131,7 @@ const PlaylistInfoBlock: React.FC<PlaylistInfoBlockProps> = ({
           </span>
           {playlist.isFolder ? (
             <span className="text-xs text-[var(--text-tertiary)]">
-              {subItemCount ?? 0} 个子歌单
+              {subItemCount ?? 0} 个子歌单 · 共 {subItemTotalTracks ?? 0} 首曲目
             </span>
           ) : (
             <span className="text-xs text-[var(--text-tertiary)]">{trackCount} 首音乐</span>
@@ -172,6 +218,8 @@ interface PlaylistActionsProps {
   onRefreshLibrary?: () => void;
   viewMode: 'list' | 'cards';
   onViewModeChange: (mode: 'list' | 'cards') => void;
+  totalFolderTracks?: number;
+  onPlayAllInFolder?: () => void;
 }
 
 const PlaylistActions: React.FC<PlaylistActionsProps> = ({
@@ -190,6 +238,8 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
   onCreateSubPlaylist,
   viewMode,
   onViewModeChange,
+  totalFolderTracks,
+  onPlayAllInFolder,
 }) => {
   const isTrash = playlist.id === 'default_trash';
   const isCustom = !playlist.isDefault;
@@ -216,11 +266,23 @@ const PlaylistActions: React.FC<PlaylistActionsProps> = ({
   if (isFolder) {
     return (
       <div className="flex items-center gap-3">
+        {totalFolderTracks && totalFolderTracks > 0 && onPlayAllInFolder && (
+          <button
+            type="button"
+            onClick={onPlayAllInFolder}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--text-primary)] text-white text-xs font-semibold shadow-[var(--shadow-xs)] hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer"
+            title="一键将该分类下的所有子歌单歌曲加入播放队列并开播"
+          >
+            <SvgIcons name="play" size={14} />
+            <span>播放全部分类 ({totalFolderTracks} 首)</span>
+          </button>
+        )}
+
         {onCreateSubPlaylist && (
           <button
             type="button"
             onClick={onCreateSubPlaylist}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--text-primary)] text-white text-xs font-semibold shadow-[var(--shadow-xs)] hover:scale-105 active:scale-95 transition-all duration-150 cursor-pointer"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white text-[var(--text-secondary)] border border-[var(--border-subtle)] text-xs font-semibold hover:text-[var(--text-primary)] transition-all duration-150 cursor-pointer shadow-[var(--shadow-xs)]"
           >
             <SvgIcons name="plus" size={14} />
             <span>新建内部歌单</span>
@@ -355,6 +417,7 @@ interface TracksRendererProps {
   onCreateSubPlaylist?: () => void;
   onEditSubPlaylist?: (child: Playlist) => void;
   onDeleteSubPlaylist?: (child: Playlist) => void;
+  onPlaySubPlaylist?: (child: Playlist) => void;
 }
 
 const TracksRenderer: React.FC<TracksRendererProps> = ({
@@ -366,6 +429,7 @@ const TracksRenderer: React.FC<TracksRendererProps> = ({
   onCreateSubPlaylist,
   onEditSubPlaylist,
   onDeleteSubPlaylist,
+  onPlaySubPlaylist,
 }) => {
   if (playlist.isFolder) {
     return (
@@ -374,6 +438,7 @@ const TracksRenderer: React.FC<TracksRendererProps> = ({
         onCreateSubPlaylist={onCreateSubPlaylist}
         onEditSubPlaylist={onEditSubPlaylist}
         onDeleteSubPlaylist={onDeleteSubPlaylist}
+        onPlaySubPlaylist={onPlaySubPlaylist}
       />
     );
   }
@@ -551,7 +616,41 @@ export const PlaylistDetailView: React.FC = () => {
 
   const displayTrackCount =
     currentPlaylistTracks.length > 0 ? currentPlaylistTracks.length : currentPlaylist.trackCount;
-  const subItemCount = playlists.filter((p) => p.parentId === currentPlaylist.id).length;
+  const subPlaylists = playlists.filter((p) => p.parentId === currentPlaylist.id);
+  const subItemCount = subPlaylists.length;
+  const subItemTotalTracks = subPlaylists.reduce((acc, c) => acc + (c.trackCount || 0), 0);
+
+  const handlePlaySubPlaylist = async (target: Playlist) => {
+    try {
+      const targetTracks = await playlistService.getPlaylistTracks(target.id);
+      if (targetTracks.length > 0) {
+        void playTrack(targetTracks[0], targetTracks, target.name);
+        showToast(`正在播放《${target.name}》（共 ${targetTracks.length} 首）`, 'success');
+      } else {
+        showToast(`歌单《${target.name}》暂无可用曲目`, 'warn');
+      }
+    } catch {
+      showToast(`加载歌单《${target.name}》失败`, 'error');
+    }
+  };
+
+  const handlePlayAllInFolder = async () => {
+    if (subPlaylists.length === 0) return;
+    try {
+      const allTracksNested = await Promise.all(
+        subPlaylists.map((child) => playlistService.getPlaylistTracks(child.id).catch(() => []))
+      );
+      const allTracks = allTracksNested.flat();
+      if (allTracks.length > 0) {
+        void playTrack(allTracks[0], allTracks, currentPlaylist.name);
+        showToast(`已开始播放分类目录《${currentPlaylist.name}》（共 ${allTracks.length} 首）`, 'success');
+      } else {
+        showToast('当前分类目录下所有歌单均无可用曲目', 'warn');
+      }
+    } catch {
+      showToast('加载分类目录曲目失败', 'error');
+    }
+  };
 
   return (
     <>
@@ -569,6 +668,8 @@ export const PlaylistDetailView: React.FC = () => {
             playlist={currentPlaylist}
             trackCount={displayTrackCount}
             subItemCount={subItemCount}
+            subItemTotalTracks={subItemTotalTracks}
+            subPlaylists={subPlaylists}
             tracks={currentPlaylistTracks}
             onCopyFirstTrackCover={() => copyPlaylistCoverFromTrack(currentPlaylist.id)}
           />
@@ -588,6 +689,8 @@ export const PlaylistDetailView: React.FC = () => {
             onRefreshLibrary={handleSyncMusics}
             viewMode={playlistViewMode}
             onViewModeChange={setPlaylistViewMode}
+            totalFolderTracks={subItemTotalTracks}
+            onPlayAllInFolder={handlePlayAllInFolder}
           />
         </div>
 
@@ -601,6 +704,7 @@ export const PlaylistDetailView: React.FC = () => {
           onCreateSubPlaylist={() => handleOpenCreateSubModal(currentPlaylist.id)}
           onEditSubPlaylist={handleOpenEditModal}
           onDeleteSubPlaylist={handleDeletePlaylist}
+          onPlaySubPlaylist={handlePlaySubPlaylist}
         />
       </motion.div>
 
