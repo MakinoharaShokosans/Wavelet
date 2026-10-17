@@ -116,12 +116,11 @@ export const TrackListItem: React.FC<TrackListItemProps> = ({
   return (
     <>
       <motion.div
-        layout="position"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: 0.2,
-          delay: Math.min(index * 0.015, 0.2),
+          duration: 0.18,
+          delay: Math.min(index * 0.012, 0.15),
           ease: 'easeOut',
         }}
         className={`group relative flex items-center justify-between px-4 py-3 rounded-2xl select-none transition-colors duration-150 ${

@@ -86,7 +86,7 @@ export const TrackListView: React.FC<TrackListViewProps> = ({ tracks, playlistId
       <div className="space-y-1">
         {sorted.map((t, idx) => (
           <TrackListItem
-            key={t.id}
+            key={`${playlistId}-${t.id}`}
             track={t}
             index={idx}
             playlistId={playlistId}

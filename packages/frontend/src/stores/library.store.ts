@@ -107,27 +107,38 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   },
 
   selectPlaylist: async (playlist: Playlist | null) => {
-    set({ currentPlaylist: playlist });
     if (!playlist) {
-      set({ currentPlaylistTracks: [] });
+      set({ currentPlaylist: null, currentPlaylistTracks: [] });
       return;
     }
 
     // 目录文件夹不包含单曲，直接清空
     if (playlist.isFolder) {
-      set({ currentPlaylistTracks: [] });
+      set({ currentPlaylist: playlist, currentPlaylistTracks: [] });
       return;
     }
 
+    // 切换至不同歌单时，立即重置当前曲目，避免在异步加载完成前闪现旧歌单曲目
+    const isDifferent = get().currentPlaylist?.id !== playlist.id;
+    set({
+      currentPlaylist: playlist,
+      currentPlaylistTracks: isDifferent ? [] : get().currentPlaylistTracks,
+      isLoading: true,
+    });
+
     try {
-      set({ isLoading: true });
       const tracks = await playlistService.getPlaylistTracks(playlist.id);
-      set({ currentPlaylistTracks: tracks, isLoading: false });
+      // 防竞态竞争 (Race Condition Guard)
+      if (get().currentPlaylist?.id === playlist.id) {
+        set({ currentPlaylistTracks: tracks, isLoading: false });
+      }
     } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : '获取歌单内歌曲失败',
-        isLoading: false,
-      });
+      if (get().currentPlaylist?.id === playlist.id) {
+        set({
+          error: err instanceof Error ? err.message : '获取歌单内歌曲失败',
+          isLoading: false,
+        });
+      }
     }
   },
 
