@@ -262,7 +262,7 @@ cmd_start() {
 
   if (( foreground )); then
     print_banner "$$"
-    echo -e " ${GREEN}▶${NC} ${BOLD}已进入实时开发调试模式${NC}：实时控制台日志已接通，按 ${BOLD}Ctrl+C${NC} 可优雅停止服务"
+    echo -e " ${GREEN}▶${NC} ${BOLD}已进入前台控制台模式${NC}：实时控制台日志已接通，按 ${BOLD}Ctrl+C${NC} 可优雅停止服务"
     echo -e "${DIM}----------------------------------------------------------------------${NC}"
     [[ -n "$LOADED_ENV_FILE" ]] && dim "已载入环境变量: $LOADED_ENV_FILE"
 
@@ -662,7 +662,7 @@ cmd_help() {
   echo ""
   echo -e "${BOLD}常用子命令:${NC}"
   echo -e "  ${GREEN}start${NC} [-d]         启动 Wavelet 服务 (${BOLD}默认实时前台日志模式${NC}，-d 为后台守护模式)"
-  echo -e "  ${GREEN}dev${NC}                实时前台开发调试模式 (与直接输入 wavelet 效果一致)"
+  echo -e "  ${GREEN}dev${NC}                实时前台控制台模式 (与直接输入 wavelet 效果一致)"
   echo -e "  ${CYAN}daemon${NC}             后台守护模式启动 Wavelet 服务"
   echo -e "  ${RED}stop${NC}               优雅停止正在运行的 Wavelet 服务"
   echo -e "  ${YELLOW}restart${NC}            重新启动 Wavelet 服务"
@@ -683,7 +683,7 @@ cmd_help() {
   echo -e "  4. 用户全局配置 ~/.config/wavelet/.env 或 ~/.wavelet/.env"
   echo ""
   echo -e "${BOLD}示例:${NC}"
-  echo -e "  wavelet                    # 直接启动并实时输出日志 (实时开发调试)"
+  echo -e "  wavelet                    # 直接启动并实时输出日志 (前台控制台模式)"
   echo -e "  wavelet start -d           # 后台守护模式运行"
   echo -e "  wavelet logs -f            # 实时追踪运行中的后台日志输出"
   echo -e "  wavelet import ~/Music     # 原地索引音乐目录"
