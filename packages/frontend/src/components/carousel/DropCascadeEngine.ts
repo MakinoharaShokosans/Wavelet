@@ -6,15 +6,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * 级联坠落与自动回滚阻尼动效计算器
  */
 export interface DropCascadeConfig {
-  cardWidth: number; // 默认 256
-  cardGap: number; // 默认 32
+  cardWidth: number; // 默认 280
+  cardGap: number; // 默认 48
   dropDelayStepMs: number; // 默认 35ms
   dropInitialY: number; // 默认 -60
 }
 
 export const defaultDropCascadeConfig: DropCascadeConfig = {
-  cardWidth: 256,
-  cardGap: 32,
+  cardWidth: 280,
+  cardGap: 48,
   dropDelayStepMs: 35,
   dropInitialY: -60,
 };
