@@ -655,7 +655,7 @@ export const PlaylistDetailView: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: 'easeOut' }}
-          className="w-full h-full flex flex-col px-8 pb-32 overflow-y-auto select-none"
+          className="w-full h-full flex flex-col px-8 pb-32 overflow-y-auto select-none scrollbar-none"
         >
           {/* 歌单主头图区 */}
           <div className="flex items-start justify-between mb-8 pt-2">

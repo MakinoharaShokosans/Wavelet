@@ -149,7 +149,7 @@ export const BackupModal: React.FC = () => {
             exit={{ opacity: 0, scale: 0.95, y: 12 }}
             transition={springMotion.stiff}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-[var(--shadow-hover)] border border-[var(--border-subtle)] z-10 flex flex-col max-h-[90vh] overflow-y-auto"
+            className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-8 shadow-[var(--shadow-hover)] border border-[var(--border-subtle)] z-10 flex flex-col max-h-[90vh] overflow-y-auto scrollbar-none"
           >
           {/* 顶部标题与关闭按钮 */}
           <div className="flex items-center justify-between pb-4 border-b border-[var(--border-subtle)] mb-6">

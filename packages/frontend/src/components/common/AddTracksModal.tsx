@@ -304,7 +304,7 @@ export const AddTracksModal: React.FC<AddTracksModalProps> = ({
             </div>
 
             {/* 歌曲列表渲染区 */}
-            <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1">
+            <div className="flex-1 overflow-y-auto px-6 py-3 space-y-1 scrollbar-none">
               {isLoading ? (
                 <div className="py-24 flex items-center justify-center text-xs text-[var(--text-tertiary)]">
                   正在读取曲库全部曲目...

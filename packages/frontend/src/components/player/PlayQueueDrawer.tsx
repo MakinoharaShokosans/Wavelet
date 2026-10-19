@@ -61,7 +61,7 @@ export const PlayQueueDrawer: React.FC = () => {
             </div>
 
             {/* 队列曲目列表 */}
-            <div className="flex-1 overflow-y-auto py-3 space-y-1">
+            <div className="flex-1 overflow-y-auto py-3 space-y-1 scrollbar-none">
               <AnimatePresence initial={false}>
                 {queue.map((track, idx) => {
                   const isCurrent = idx === currentIndex;

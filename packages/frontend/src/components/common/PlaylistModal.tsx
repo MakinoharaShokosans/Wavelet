@@ -482,7 +482,7 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -4, scale: 0.98 }}
                           transition={{ duration: 0.15, ease: 'easeOut' }}
-                          className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-[var(--border-subtle)] p-1 max-h-52 overflow-y-auto space-y-0.5"
+                          className="absolute left-0 right-0 top-full mt-1.5 z-30 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-[var(--border-subtle)] p-1 max-h-52 overflow-y-auto scrollbar-none space-y-0.5"
                           role="listbox"
                         >
                           {/* 根目录选项 */}

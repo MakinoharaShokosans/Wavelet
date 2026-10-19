@@ -377,7 +377,7 @@ export const Sidebar: React.FC = () => {
             </div>
           )}
           {rootCustomPlaylists.length > 0 ? (
-            <div className="space-y-0.5 overflow-y-auto max-h-[35vh]">
+            <div className="space-y-0.5 overflow-y-auto max-h-[35vh] scrollbar-none">
               {rootCustomPlaylists.map((pl) => (
                 <SidebarTreeNode
                   key={pl.id}
