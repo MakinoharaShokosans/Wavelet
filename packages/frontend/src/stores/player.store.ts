@@ -358,9 +358,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   setPlayMode: async (mode: PlayMode) => {
+    set({ playMode: mode });
     try {
       const queueStatus = await playerService.setPlayMode(mode);
-      set({ playMode: queueStatus.playMode });
+      if (queueStatus?.playMode) {
+        set({ playMode: queueStatus.playMode });
+      }
     } catch {
       // 容灾
     }
@@ -419,11 +422,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     consecutivePlaybackErrors = 0;
     try {
       const queueStatus = await playerService.setQueue(tracks, startIndex);
-      set({
-        queue: queueStatus.queue,
-        currentIndex: queueStatus.currentIndex,
-        currentTrack: queueStatus.currentTrack,
-      });
+      if (queueStatus) {
+        set({
+          queue: Array.isArray(queueStatus.queue) ? queueStatus.queue : tracks,
+          currentIndex:
+            typeof queueStatus.currentIndex === 'number'
+              ? queueStatus.currentIndex
+              : startIndex,
+          currentTrack:
+            queueStatus.currentTrack || (tracks[startIndex] ?? null),
+        });
+      }
     } catch {
       // 容灾
     }
@@ -432,7 +441,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   addToQueue: async (tracks: Track[]) => {
     try {
       const queueStatus = await playerService.addToQueue(tracks);
-      set({ queue: queueStatus.queue });
+      if (queueStatus && Array.isArray(queueStatus.queue)) {
+        set({ queue: queueStatus.queue });
+      }
     } catch {
       // 容灾
     }
@@ -451,7 +462,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     try {
       const queueStatus = await playerService.clearQueue();
       set({
-        queue: queueStatus.queue,
+        queue: Array.isArray(queueStatus?.queue) ? queueStatus.queue : [],
         currentIndex: -1,
       });
     } catch {

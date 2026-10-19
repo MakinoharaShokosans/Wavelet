@@ -98,10 +98,11 @@ export const PlayerStage: React.FC = () => {
   }
 
   const handleModeCycle = () => {
-    setPlayMode(NEXT_PLAY_MODES[playMode]);
+    const nextMode = NEXT_PLAY_MODES[playMode] || 'repeat-list';
+    void setPlayMode(nextMode);
   };
 
-  const modeInfo = PLAY_MODE_ICONS[playMode];
+  const modeInfo = PLAY_MODE_ICONS[playMode] || PLAY_MODE_ICONS.sequence;
 
   return (
     <motion.div

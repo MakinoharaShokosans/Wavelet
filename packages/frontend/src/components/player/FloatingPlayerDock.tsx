@@ -62,8 +62,8 @@ export const FloatingPlayerDock: React.FC = () => {
   const [scrubTimeMs, setScrubTimeMs] = useState<number | null>(null);
 
   const handleModeCycle = () => {
-    const nextMode = NEXT_PLAY_MODES[playMode];
-    setPlayMode(nextMode);
+    const nextMode = NEXT_PLAY_MODES[playMode] || 'repeat-list';
+    void setPlayMode(nextMode);
   };
 
   const handleExpandStage = () => {
@@ -72,7 +72,7 @@ export const FloatingPlayerDock: React.FC = () => {
     }
   };
 
-  const modeInfo = PLAY_MODE_ICONS[playMode];
+  const modeInfo = PLAY_MODE_ICONS[playMode] || PLAY_MODE_ICONS.sequence;
   const trackTitle = currentTrack?.title || 'Wavelet ♫ 等待播放';
   const trackArtist = currentTrack?.artist || '发烧级母带播放引擎已就绪';
   const displayTimeMs = scrubTimeMs !== null ? scrubTimeMs : currentTimeMs;

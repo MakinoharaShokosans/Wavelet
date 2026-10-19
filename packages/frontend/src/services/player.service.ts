@@ -7,6 +7,15 @@ import type {
 } from '@wavelet/shared';
 import apiClient from './apiClient.js';
 
+function extractQueueStatus(
+  res: { success?: boolean; queue: PlayQueueStatus } | PlayQueueStatus
+): PlayQueueStatus {
+  if (res && typeof res === 'object' && 'queue' in res && !Array.isArray(res.queue)) {
+    return res.queue;
+  }
+  return res as PlayQueueStatus;
+}
+
 export const playerService = {
   /**
    * 获取当前播放器状态
@@ -71,24 +80,33 @@ export const playerService = {
    * 覆盖重置整个播放队列
    */
   async setQueue(tracks: Track[], startIndex = 0): Promise<PlayQueueStatus> {
-    return apiClient.post<PlayQueueStatus>('/api/player/queue', {
+    const res = await apiClient.post<
+      { success?: boolean; queue: PlayQueueStatus } | PlayQueueStatus
+    >('/api/player/queue', {
       tracks,
       startIndex,
     });
+    return extractQueueStatus(res);
   },
 
   /**
    * 向播放队列追加歌曲
    */
   async addToQueue(tracks: Track[]): Promise<PlayQueueStatus> {
-    return apiClient.post<PlayQueueStatus>('/api/player/queue/add', { tracks });
+    const res = await apiClient.post<
+      { success?: boolean; queue: PlayQueueStatus } | PlayQueueStatus
+    >('/api/player/queue/add', { tracks });
+    return extractQueueStatus(res);
   },
 
   /**
    * 清空整个播放队列
    */
   async clearQueue(): Promise<PlayQueueStatus> {
-    return apiClient.del<PlayQueueStatus>('/api/player/queue');
+    const res = await apiClient.del<
+      { success?: boolean; queue: PlayQueueStatus } | PlayQueueStatus
+    >('/api/player/queue');
+    return extractQueueStatus(res);
   },
 
   /**
@@ -109,7 +127,10 @@ export const playerService = {
    * 切换播放模式 ('sequence' | 'repeat-list' | 'repeat-track' | 'shuffle')
    */
   async setPlayMode(mode: PlayMode): Promise<PlayQueueStatus> {
-    return apiClient.post<PlayQueueStatus>('/api/player/play-mode', { mode });
+    const res = await apiClient.post<
+      { success?: boolean; queue: PlayQueueStatus } | PlayQueueStatus
+    >('/api/player/play-mode', { mode });
+    return extractQueueStatus(res);
   },
 
   /**
