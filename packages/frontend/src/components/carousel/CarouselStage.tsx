@@ -1,6 +1,7 @@
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { springMotion } from '../../assets/styles/motion.js';
+import { playlistService } from '../../services/playlist.service.js';
 import { useLibraryStore } from '../../stores/library.store.js';
 import { useUIStore } from '../../stores/ui.store.js';
 import { defaultDropCascadeConfig, useCarouselSnap } from './DropCascadeEngine.js';
@@ -24,6 +25,12 @@ export const CarouselStage: React.FC = () => {
     dragProps,
     isDraggingRef,
   } = useCarouselSnap({ totalItems: displayPlaylists.length });
+
+  const activePlaylist = displayPlaylists[activeIndex];
+  const activeCoverUrl =
+    activePlaylist && activePlaylist.coverImagePath
+      ? playlistService.getCoverUrl(activePlaylist.id)
+      : null;
 
   const handleCardClick = (index: number) => {
     if (isDraggingRef.current) return;
@@ -59,14 +66,53 @@ export const CarouselStage: React.FC = () => {
       onWheel={handleWheel}
       className="w-full h-full flex flex-col justify-center overflow-hidden relative select-none"
     >
-      {/* 顶部标题 */}
-      <div className="text-center mb-8">
-        <h2 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">曲库</h2>
+      {/* 封面自适应环境弥散流体光晕 (Dynamic Ambient Aura) */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-0">
+        <AnimatePresence mode="wait">
+          {activeCoverUrl ? (
+            <motion.div
+              key={activeCoverUrl}
+              initial={{ opacity: 0, scale: 0.88 }}
+              animate={{ opacity: 0.26, scale: 1.15 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
+              className="w-[660px] h-[520px] rounded-full blur-[120px] transform-gpu pointer-events-none"
+              style={{
+                backgroundImage: `url(${activeCoverUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
+          ) : (
+            <motion.div
+              key="default-aura"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.08 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
+              className="w-[500px] h-[400px] rounded-full bg-[var(--text-tertiary)] blur-[110px] transform-gpu pointer-events-none"
+            />
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 顶部策展微排版 */}
+      <div className="text-center mb-8 flex flex-col items-center relative z-10">
+        <div className="flex items-center gap-2 mb-1.5 opacity-60">
+          <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]" />
+          <span className="text-[10px] tracking-[0.28em] font-semibold text-[var(--text-tertiary)] uppercase">
+            Master Acoustic Gallery
+          </span>
+          <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]" />
+        </div>
+        <h2 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">
+          曲库
+        </h2>
       </div>
 
       {/* 横向吸附轮播轨道 */}
       {displayPlaylists.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)] text-xs">
+        <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)] text-xs relative z-10">
           <p>暂无歌单</p>
           <p className="mt-1">点击左侧【+】新建歌单</p>
         </div>
@@ -75,7 +121,7 @@ export const CarouselStage: React.FC = () => {
           animate={{ x: snapOffset }}
           transition={hasEntered ? springMotion.rebound : { duration: 0 }}
           style={{ willChange: 'transform' }}
-          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu"
+          className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu relative z-10"
           {...dragProps}
         >
           {displayPlaylists.map((pl, idx) => {
