@@ -127,7 +127,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                 animate={{ x: snapOffset }}
                 transition={hasEntered ? springMotion.rebound : { duration: 0 }}
                 style={{ willChange: 'transform' }}
-                className="flex items-center gap-8 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu"
+                className="flex items-center gap-12 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu"
                 {...dragProps}
               >
                 {children.map((child, idx) => {
@@ -136,7 +136,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                     return (
                       <div
                         key={child.id}
-                        className="w-64 h-80 rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
+                        className="w-[280px] h-[384px] rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
                       />
                     );
                   }
@@ -181,7 +181,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
                         opacity: activeIndex === children.length ? 1 : 0.65,
                       }}
                       transition={springMotion.gentle}
-                      className={`relative w-64 h-80 rounded-3xl border-2 border-dashed border-[var(--border-subtle)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]/50 p-5 flex flex-col items-center justify-center gap-4 cursor-pointer select-none transition-shadow duration-300 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] group flex-shrink-0 ${
+                      className={`relative w-[280px] h-[384px] rounded-3xl border-2 border-dashed border-[var(--border-subtle)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-subtle)]/50 p-5 flex flex-col items-center justify-center gap-4 cursor-pointer select-none transition-shadow duration-300 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] group flex-shrink-0 ${
                         activeIndex === children.length
                           ? 'shadow-2xl z-10 bg-white/70'
                           : 'shadow-[var(--shadow-card)] hover:shadow-lg bg-white/30'

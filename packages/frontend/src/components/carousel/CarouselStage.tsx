@@ -1,6 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
-import { useEffect } from 'react';
 import { springMotion } from '../../assets/styles/motion.js';
 import { playlistService } from '../../services/playlist.service.js';
 import { useLibraryStore } from '../../stores/library.store.js';
@@ -9,18 +8,11 @@ import { defaultDropCascadeConfig, useCarouselSnap } from './DropCascadeEngine.j
 import PlaylistCard from './PlaylistCard.js';
 
 export const CarouselStage: React.FC = () => {
-  const { playlists, selectPlaylist, stats, refreshStats } = useLibraryStore();
+  const { playlists, selectPlaylist } = useLibraryStore();
   const { navigate, resetBreadcrumbs, pushBreadcrumb } = useUIStore();
-
-  useEffect(() => {
-    if (!stats) {
-      void refreshStats();
-    }
-  }, [stats, refreshStats]);
 
   // 仅展示实际可播放的自定义歌单（排除系统默认全部/未集成/收藏/回收歌单，以及分类文件夹容器）
   const displayPlaylists = playlists.filter((p) => !p.isDefault && !p.isFolder);
-  const totalTracksCount = displayPlaylists.reduce((acc, p) => acc + (p.trackCount || 0), 0);
 
   const {
     containerRef,
@@ -72,16 +64,16 @@ export const CarouselStage: React.FC = () => {
     <div
       ref={containerRef}
       onWheel={handleWheel}
-      className="w-full h-full flex flex-col justify-between pt-5 pb-24 overflow-hidden relative select-none"
+      className="w-full h-full flex flex-col justify-center overflow-hidden relative select-none pb-14"
     >
-      {/* 封面自适应环境弥散流体光晕 (Dynamic Ambient Aura - 增强扩散与舞台投光) */}
+      {/* 封面自适应环境弥散流体光晕 (Dynamic Ambient Aura) */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden z-0">
         <AnimatePresence mode="wait">
           {activeCoverUrl ? (
             <motion.div
               key={activeCoverUrl}
               initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 0.42, scale: 1.15 }}
+              animate={{ opacity: 0.38, scale: 1.15 }}
               exit={{ opacity: 0, scale: 0.96 }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
               className="w-[880px] h-[640px] rounded-full blur-[130px] transform-gpu pointer-events-none"
@@ -95,7 +87,7 @@ export const CarouselStage: React.FC = () => {
             <motion.div
               key="default-aura"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.12 }}
+              animate={{ opacity: 0.1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.6 }}
               className="w-[680px] h-[480px] rounded-full bg-[var(--text-tertiary)] blur-[120px] transform-gpu pointer-events-none"
@@ -104,32 +96,16 @@ export const CarouselStage: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* 顶部母带策展仪表盘 (消灭孤立与大面积惨白空白) */}
-      <div className="flex flex-col items-center text-center relative z-10 px-8 flex-shrink-0">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/75 backdrop-blur-md border border-[var(--border-subtle)] shadow-[0_2px_8px_rgba(0,0,0,0.03)] mb-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-mint)] animate-pulse" />
-          <span className="text-[10px] tracking-[0.24em] font-semibold text-[var(--text-secondary)] uppercase">
-            Master Acoustic Gallery
-          </span>
-        </div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-[var(--text-primary)] mb-2">
+      {/* 顶部标题 - 极简纯净 */}
+      <div className="text-center mb-6 flex flex-col items-center relative z-10 flex-shrink-0">
+        <h2 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">
           曲库
-        </h1>
-        <div className="flex items-center gap-2.5 text-xs text-[var(--text-tertiary)] font-medium">
-          <span>{displayPlaylists.length} 部典藏歌单</span>
-          <span className="opacity-40">·</span>
-          <span>{totalTracksCount || stats?.trackCount || 0} 首在席音轨</span>
-          <span className="opacity-40">·</span>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] text-[10px] font-mono font-bold text-[var(--text-secondary)] border border-[var(--border-subtle)]">
-            <span className="w-1 h-1 rounded-full bg-[var(--accent-mint)]" />
-            Hi-Res Lossless
-          </span>
-        </div>
+        </h2>
       </div>
 
       {/* 横向吸附轮播轨道 */}
       {displayPlaylists.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)] text-xs relative z-10 my-auto">
+        <div className="flex flex-col items-center justify-center py-16 text-[var(--text-tertiary)] text-xs relative z-10">
           <p>暂无歌单</p>
           <p className="mt-1">点击左侧【+】新建歌单</p>
         </div>
@@ -138,7 +114,7 @@ export const CarouselStage: React.FC = () => {
           animate={{ x: snapOffset }}
           transition={hasEntered ? springMotion.rebound : { duration: 0 }}
           style={{ willChange: 'transform' }}
-          className="flex items-center gap-12 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu relative z-10 py-4 my-auto"
+          className="flex items-center gap-12 pl-0 cursor-grab active:cursor-grabbing w-max transform-gpu relative z-10 py-4"
           {...dragProps}
         >
           {displayPlaylists.map((pl, idx) => {
@@ -147,7 +123,7 @@ export const CarouselStage: React.FC = () => {
               return (
                 <div
                   key={pl.id}
-                  className="w-[280px] h-[420px] rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
+                  className="w-[280px] h-[384px] rounded-3xl flex-shrink-0 pointer-events-none opacity-0"
                 />
               );
             }
@@ -172,9 +148,6 @@ export const CarouselStage: React.FC = () => {
           })}
         </motion.div>
       )}
-
-      {/* 底部微间距占位以防与播放坞产生视觉重叠 */}
-      <div className="h-2 flex-shrink-0" />
     </div>
   );
 };
