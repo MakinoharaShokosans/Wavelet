@@ -127,13 +127,7 @@ const migrations: Migration[] = [
         INSERT OR IGNORE INTO playlists (id, name, description, is_default, parent_id, is_folder, track_count, created_at, updated_at)
         VALUES (?, ?, ?, 1, NULL, 0, 0, ?, ?);
       `);
-      insertDefaultStmt.run(
-        'default_unintegrated_tracks',
-        '散落',
-        '新导入待归类音乐',
-        now,
-        now
-      );
+      insertDefaultStmt.run('default_unintegrated_tracks', '散落', '新导入待归类音乐', now, now);
       insertDefaultStmt.run('default_favorites', '收藏', '标记为喜爱的音乐精选', now, now);
     },
   },
@@ -175,7 +169,9 @@ const migrations: Migration[] = [
       // 简化系统默认歌单为极简 2 字规范：全部、收藏、散落、回收
       db.prepare(`UPDATE playlists SET name = '全部' WHERE id = 'default_all_tracks';`).run();
       db.prepare(`UPDATE playlists SET name = '收藏' WHERE id = 'default_favorites';`).run();
-      db.prepare(`UPDATE playlists SET name = '散落' WHERE id = 'default_unintegrated_tracks';`).run();
+      db.prepare(
+        `UPDATE playlists SET name = '散落' WHERE id = 'default_unintegrated_tracks';`
+      ).run();
       db.prepare(`UPDATE playlists SET name = '回收' WHERE id = 'default_trash';`).run();
     },
   },

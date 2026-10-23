@@ -18,12 +18,14 @@ export function getOrCreateSessionSecret(): string {
  * 本地访问安全守卫中间件
  */
 export async function sessionGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const pathname = request.url.split('?')[0];
+  const isCoverGet =
+    request.method === 'GET' &&
+    ((pathname.startsWith('/api/tracks/') && pathname.endsWith('/cover')) ||
+      (pathname.startsWith('/api/playlists/') && pathname.endsWith('/cover')));
+
   // 1. 允许非 /api 前缀的静态网页资源、安全握手首次请求与封面只读 GET 请求
-  if (
-    !request.url.startsWith('/api') ||
-    request.url.startsWith('/api/auth/token') ||
-    (request.method === 'GET' && request.url.includes('/cover'))
-  ) {
+  if (!pathname.startsWith('/api') || pathname.startsWith('/api/auth/token') || isCoverGet) {
     return;
   }
 

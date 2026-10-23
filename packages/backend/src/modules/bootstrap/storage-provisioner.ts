@@ -9,6 +9,7 @@ export interface StorageTopology {
   quarantineDir: string;
   cacheDir: string;
   coversDir: string;
+  healedDir: string;
   tempDir: string;
   logsDir: string;
 }
@@ -26,6 +27,7 @@ export function provisionStorage(): StorageTopology {
     quarantineDir: config.storage.quarantineDir,
     cacheDir: config.storage.cacheDir,
     coversDir: path.join(config.storage.cacheDir, 'covers'),
+    healedDir: path.join(config.storage.cacheDir, 'healed'),
     tempDir: path.join(config.storage.cacheDir, 'temp'),
     logsDir: config.storage.logsDir,
   };

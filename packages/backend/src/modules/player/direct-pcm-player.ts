@@ -6,6 +6,7 @@ import ffmpegStatic from 'ffmpeg-static';
 import { getConfig } from '../../config/index.js';
 import { logger } from '../bootstrap/logger.js';
 import { broadcastPlaybackSync } from '../gateway/ws/broadcaster.js';
+import { resolvePlayableAudioPath } from '../library/musics-syncer.js';
 import { FftPump } from './fft-pump.js';
 
 interface ResolvedFfmpeg {
@@ -110,9 +111,10 @@ export class DirectPcmPlayer {
   async play(track: Track, offsetMs = 0): Promise<void> {
     this.stop();
 
-    if (!fs.existsSync(track.filePath)) {
+    const effectivePath = resolvePlayableAudioPath(track);
+    if (!fs.existsSync(effectivePath)) {
       logger.warn(
-        { trackId: track.id, filePath: track.filePath },
+        { trackId: track.id, filePath: effectivePath },
         '[DirectPlayer] 物理文件不存在，拦截硬件直通启动'
       );
       this.state = 'stopped';
@@ -142,7 +144,7 @@ export class DirectPcmPlayer {
       '-ss',
       offsetSeconds,
       '-i',
-      track.filePath,
+      effectivePath,
       '-vn',
       ...(useBs2b ? ['-af', 'bs2b=profile=default'] : []),
       '-f',

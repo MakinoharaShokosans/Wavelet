@@ -426,11 +426,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         set({
           queue: Array.isArray(queueStatus.queue) ? queueStatus.queue : tracks,
           currentIndex:
-            typeof queueStatus.currentIndex === 'number'
-              ? queueStatus.currentIndex
-              : startIndex,
-          currentTrack:
-            queueStatus.currentTrack || (tracks[startIndex] ?? null),
+            typeof queueStatus.currentIndex === 'number' ? queueStatus.currentIndex : startIndex,
+          currentTrack: queueStatus.currentTrack || (tracks[startIndex] ?? null),
         });
       }
     } catch {

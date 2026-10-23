@@ -3,13 +3,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import type React from 'react';
 import { useEffect, useState } from 'react';
 import { springMotion } from '../../assets/styles/motion.js';
+import { playlistService } from '../../services/playlist.service.js';
 import { useLibraryStore } from '../../stores/library.store.js';
 import { useUIStore } from '../../stores/ui.store.js';
 import type { SvgIconName } from '../../types/component.js';
 import { FloatingCard } from '../common/FloatingCard.js';
 import { PlaylistModal } from '../common/PlaylistModal.js';
 import { SvgIcons } from '../common/SvgIcons.js';
-import { playlistService } from '../../services/playlist.service.js';
 
 function getDefaultPlaylistIcon(plId: string): { name: SvgIconName; color: string } {
   if (plId === 'default_favorites') return { name: 'heart-filled', color: 'var(--accent-coral)' };
@@ -394,9 +394,7 @@ export const Sidebar: React.FC = () => {
             </div>
           ) : (
             !isSidebarCollapsed && (
-              <div className="px-3 py-2 text-[11px] text-[var(--text-tertiary)]">
-                暂无歌单
-              </div>
+              <div className="px-3 py-2 text-[11px] text-[var(--text-tertiary)]">暂无歌单</div>
             )
           )}
         </div>

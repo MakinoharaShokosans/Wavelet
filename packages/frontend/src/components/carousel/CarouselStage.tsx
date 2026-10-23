@@ -98,9 +98,7 @@ export const CarouselStage: React.FC = () => {
 
       {/* 顶部标题 - 极简纯净 */}
       <div className="text-center mb-6 flex flex-col items-center relative z-10 flex-shrink-0">
-        <h2 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">
-          曲库
-        </h2>
+        <h2 className="text-2xl font-extrabold tracking-tight text-[var(--text-primary)]">曲库</h2>
       </div>
 
       {/* 横向吸附轮播轨道 */}

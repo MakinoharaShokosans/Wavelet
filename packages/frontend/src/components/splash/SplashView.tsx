@@ -19,7 +19,11 @@ const ClefGlyph: React.FC = () => (
     strokeLinejoin="round"
     className="overflow-visible"
   >
-    <path d="M12 25 C10 25 8.5 23.5 8.5 21.8 C8.5 20 10 18.5 12 18.5 C13.8 18.5 15.2 19.8 15.2 21.5 C15.2 23.5 13.5 25 12 25 Z" fill="currentColor" opacity="0.12" />
+    <path
+      d="M12 25 C10 25 8.5 23.5 8.5 21.8 C8.5 20 10 18.5 12 18.5 C13.8 18.5 15.2 19.8 15.2 21.5 C15.2 23.5 13.5 25 12 25 Z"
+      fill="currentColor"
+      opacity="0.12"
+    />
     <path d="M12 2.5 C11 2.5 10 3.5 10 5 C10 7.5 13.5 10 13.5 13 C13.5 15.5 11.5 17 9.5 17 C7.5 17 6 15.5 6 13.5 C6 11 8 9.5 10.5 9.5 C11.5 9.5 12.2 9.8 12.8 10.2 L12.8 3 C12.8 2.7 12.4 2.5 12 2.5 Z M12.8 10.2 L12.8 22 C12.8 23.5 11.5 24.5 10 24.5 C8.5 24.5 7.5 23.5 7.5 22.2 C7.5 21 8.5 20.2 9.8 20.2 C10.6 20.2 11.2 20.6 11.5 21.2" />
     <circle cx="9.8" cy="22.2" r="1.2" fill="currentColor" />
   </svg>
@@ -27,9 +31,33 @@ const ClefGlyph: React.FC = () => (
 
 const BeamedNotesGlyph: React.FC = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
-    <line x1="6.8" y1="5.5" x2="19.2" y2="3.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-    <line x1="7" y1="5.5" x2="7" y2="17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    <line x1="19" y1="3.5" x2="19" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <line
+      x1="6.8"
+      y1="5.5"
+      x2="19.2"
+      y2="3.5"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+    />
+    <line
+      x1="7"
+      y1="5.5"
+      x2="7"
+      y2="17"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <line
+      x1="19"
+      y1="3.5"
+      x2="19"
+      y2="15"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
     <ellipse cx="5" cy="17" rx="3.2" ry="2.2" transform="rotate(-30 5 17)" fill="currentColor" />
     <ellipse cx="17" cy="15" rx="3.2" ry="2.2" transform="rotate(-30 17 15)" fill="currentColor" />
   </svg>
@@ -37,28 +65,87 @@ const BeamedNotesGlyph: React.FC = () => (
 
 const QuarterNoteGlyph: React.FC = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
-    <line x1="11.2" y1="4" x2="11.2" y2="17.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    <ellipse cx="8.5" cy="17.5" rx="3.4" ry="2.3" transform="rotate(-30 8.5 17.5)" fill="currentColor" />
-  </svg>
-);
-
-const FlagNoteGlyph: React.FC = () => (
-  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
-    <line x1="8.5" y1="4" x2="8.5" y2="17.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    <ellipse cx="6" cy="17.5" rx="3.4" ry="2.3" transform="rotate(-30 6 17.5)" fill="currentColor" />
-    <path
-      d="M8.5 4 C13 7, 15 10.5, 15 13.5 C14 12.8, 12 11.5, 8.5 10.5"
+    <line
+      x1="11.2"
+      y1="4"
+      x2="11.2"
+      y2="17.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <ellipse
+      cx="8.5"
+      cy="17.5"
+      rx="3.4"
+      ry="2.3"
+      transform="rotate(-30 8.5 17.5)"
       fill="currentColor"
     />
   </svg>
 );
 
+const FlagNoteGlyph: React.FC = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
+    <line
+      x1="8.5"
+      y1="4"
+      x2="8.5"
+      y2="17.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <ellipse
+      cx="6"
+      cy="17.5"
+      rx="3.4"
+      ry="2.3"
+      transform="rotate(-30 6 17.5)"
+      fill="currentColor"
+    />
+    <path d="M8.5 4 C13 7, 15 10.5, 15 13.5 C14 12.8, 12 11.5, 8.5 10.5" fill="currentColor" />
+  </svg>
+);
+
 const SixteenthNotesGlyph: React.FC = () => (
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" className="overflow-visible">
-    <line x1="6.8" y1="5" x2="19.2" y2="3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    <line x1="6.8" y1="8.5" x2="19.2" y2="6.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    <line x1="7" y1="5" x2="7" y2="17" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    <line x1="19" y1="3" x2="19" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <line
+      x1="6.8"
+      y1="5"
+      x2="19.2"
+      y2="3"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
+    <line
+      x1="6.8"
+      y1="8.5"
+      x2="19.2"
+      y2="6.5"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
+    <line
+      x1="7"
+      y1="5"
+      x2="7"
+      y2="17"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <line
+      x1="19"
+      y1="3"
+      x2="19"
+      y2="15"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
     <ellipse cx="5" cy="17" rx="3.2" ry="2.2" transform="rotate(-30 5 17)" fill="currentColor" />
     <ellipse cx="17" cy="15" rx="3.2" ry="2.2" transform="rotate(-30 17 15)" fill="currentColor" />
   </svg>
@@ -166,11 +253,7 @@ export const SplashView: React.FC = () => {
             <motion.div
               key={id}
               initial={{ y: -10, opacity: 0 }}
-              animate={
-                notesLanded
-                  ? { y: [0, -1.8, 0], opacity: 1 }
-                  : { y: 0, opacity: 1 }
-              }
+              animate={notesLanded ? { y: [0, -1.8, 0], opacity: 1 } : { y: 0, opacity: 1 }}
               transition={
                 notesLanded
                   ? {

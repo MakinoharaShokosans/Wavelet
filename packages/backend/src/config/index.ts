@@ -136,6 +136,7 @@ export function loadConfig(customFilePath?: string): WaveletConfig {
           cacheDir: resolveHome(validated.storage.cacheDir),
           logsDir: resolveHome(validated.storage.logsDir),
           databaseFile: resolveHome(validated.storage.databaseFile),
+          titleParseMode: validated.storage.titleParseMode,
         },
         audio: validated.audio,
         transcoder: validated.transcoder,

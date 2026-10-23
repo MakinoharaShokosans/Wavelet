@@ -7,6 +7,7 @@ import {
   broadcastPlaybackQueue,
   broadcastPlaybackSync,
 } from '../gateway/ws/broadcaster.js';
+import { resolvePlayableAudioPath } from '../library/musics-syncer.js';
 import { TrackRepository } from '../library/repositories/track.repository.js';
 import { type PlaybackState, getDirectPlayer } from './direct-pcm-player.js';
 
@@ -66,8 +67,9 @@ export class PlaybackRouter {
     }
     broadcastPlaybackQueue(this.getQueue());
 
-    // 毫秒级物理文件轻量存在性检查 (ISSUE-01: 物理文件丢失防御)
-    if (!fs.existsSync(track.filePath)) {
+    // 毫秒级物理文件轻量存在性检查 (ISSUE-01: 物理文件丢失防御，支持自愈流)
+    const effectivePath = resolvePlayableAudioPath(track);
+    if (!fs.existsSync(effectivePath)) {
       this.handleMissingTrack(track);
       return;
     }

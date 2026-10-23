@@ -9,7 +9,7 @@
 ## ✦ 1. 项目定位与核心理念
 
 Wavelet 是一套面向发烧级母带音频体验的现代化轻量级音乐播放系统：
-- **发烧级音频直通 (Bit-Perfect)**：纯 TypeScript 严格模式构建，底层具备 7 类坏损音频嗅探与内存帧级自愈，优先直通播放，免无谓重采样。
+- **发烧级音频直通 (Bit-Perfect) 与非破坏性自愈**：纯 TypeScript 严格模式构建，底层具备 7 类坏损音频嗅探与内存帧级自愈，自愈版本写入持久缓存并在开流时优先直通播放，原文件资产安全无损，免无谓重采样。
 - **纯几何与 INS 纯白极简美学**：全界面基于 React 19、Tailwind CSS v4 与 Motion 12 构建，**零第三方外部图标库、零系统 Emoji**，全由内联手绘纯几何矢量 SVG 构成。
 - **严格的分层互斥模型**：分类目录与歌曲严格互斥，母带音频物理安全第一（软删除回收站机制）。
 
@@ -42,16 +42,21 @@ Wavelet/
 │   │       ├── index.ts             # 后端应用入口点与主生命周期
 │   │       ├── config/              # 环境配置与路径解析 (.env, 常量)
 │   │       ├── modules/
-│   │       │   ├── audio/           # 音频核心引擎 (DirectPCM, TranscodeWorker, BufferQueue)
-│   │       │   ├── gateway/         # Fastify HTTP RESTful API、WebSocket 广播、SSE
-│   │       │   │   ├── routes/      # 路由处理器 (tracks, playlists, system, playback)
-│   │       │   │   └── ws/          # 实时双向通信通道
-│   │       │   ├── library/         # 数据库与元数据管理
+│   │       │   ├── bootstrap/       # 引导生命周期、环境探测、目录拓扑与平滑停机
+│   │       │   ├── gateway/         # Fastify HTTP RESTful API、WebSocket 广播与会话中间件
+│   │       │   │   ├── middleware/  # 本地会话安全看护 (session-guard)
+│   │       │   │   ├── routes/      # 路由处理器 (tracks, playlists, settings, stream, import, backup)
+│   │       │   │   └── ws/          # 实时双向通信通道与进度广播
+│   │       │   ├── inspector/       # 音频体检与坏损自愈引擎 (sniffer, pipeline, healers, waveform)
+│   │       │   ├── library/         # 数据库仓储与曲库一致性中枢
 │   │       │   │   ├── db/          # better-sqlite3 实例、增量迁移机制 (migrator)
 │   │       │   │   ├── repositories/# 数据持久化仓储 (TrackRepository, PlaylistRepository)
-│   │       │   │   ├── scanner/     # 本地音频文件扫描器、坏损嗅探与元信息提取
-│   │       │   │   └── backup-manager.ts # 曲库备份与跨设备迁移管理器
-│   │       │   └── session/         # 单会话凭证与访问看护 (Session Guard)
+│   │       │   │   ├── musics-syncer.ts   # 原地零拷贝扫描、重命名保活、增量热刷新与软失效
+│   │       │   │   ├── sidecar-detector.ts# 外挂伴随歌词 (.lrc) 与同级封面探测
+│   │       │   │   ├── integrity-guard.ts # 防灾熔断、防空门与孤立关联全量校准
+│   │       │   │   └── backup-manager.ts  # 曲库全量备份与跨机迁移管理器
+│   │       │   ├── player/          # 发烧级硬件音频输出引擎 (DirectPCM, DeviceManager, FFTPump)
+│   │       │   └── transcoder/      # 多线程转码池与母带 FLAC 标准化器 (worker-pool, flac-standardizer)
 │   └── frontend/                    # 现代化发烧级 Web 客户端 (@wavelet/frontend)
 │       └── src/
 │           ├── main.tsx             # 前端入口挂载

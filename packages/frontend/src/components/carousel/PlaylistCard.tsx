@@ -50,9 +50,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
   };
 
   const subtitle =
-    playlist.description && playlist.description !== playlist.name
-      ? playlist.description
-      : '';
+    playlist.description && playlist.description !== playlist.name ? playlist.description : '';
 
   return (
     <motion.div
@@ -64,7 +62,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
         isGrid
           ? { scale: 1, opacity: 1, y: 0, filter: 'blur(0px)' }
           : {
-              scale: isActive ? 1.05 : 0.90,
+              scale: isActive ? 1.05 : 0.9,
               opacity: isActive ? 1 : 0.55,
               y: isActive ? -4 : 0,
               filter: isActive ? 'blur(0px)' : 'blur(0.8px)',
@@ -75,8 +73,8 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
         isGrid
           ? 'shadow-[var(--shadow-card)] hover:shadow-xl hover:-translate-y-1'
           : isActive
-          ? 'ring-1 ring-black/[0.04] z-20'
-          : 'shadow-[var(--shadow-card)] hover:opacity-85 hover:blur-none z-10'
+            ? 'ring-1 ring-black/[0.04] z-20'
+            : 'shadow-[var(--shadow-card)] hover:opacity-85 hover:blur-none z-10'
       }`}
       style={{
         transform: tilt.active
@@ -175,7 +173,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
               animate={isActive && !isGrid ? { rotate: 360 } : { rotate: 0 }}
               transition={
                 isActive && !isGrid
-                  ? { repeat: Infinity, duration: 22, ease: 'linear' }
+                  ? { repeat: Number.POSITIVE_INFINITY, duration: 22, ease: 'linear' }
                   : { duration: 0.6, ease: 'easeOut' }
               }
               className="w-full h-full rounded-full bg-[#131417] shadow-xl relative flex items-center justify-center border-2 border-[#232428]"
@@ -267,9 +265,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
           {playlist.name}
         </h3>
         {subtitle ? (
-          <p className="text-xs text-[var(--text-tertiary)] truncate font-normal">
-            {subtitle}
-          </p>
+          <p className="text-xs text-[var(--text-tertiary)] truncate font-normal">{subtitle}</p>
         ) : null}
       </div>
     </motion.div>
@@ -277,4 +273,3 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
 };
 
 export default PlaylistCard;
-

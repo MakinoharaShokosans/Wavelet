@@ -290,9 +290,7 @@ export const SubPlaylistCarousel: React.FC<SubPlaylistCarouselProps> = ({
           <div className="w-12 h-12 rounded-2xl bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--text-tertiary)] mb-3">
             <SvgIcons name="folder" size={24} />
           </div>
-          <p className="text-xs text-[var(--text-secondary)] font-medium">
-            暂无歌单
-          </p>
+          <p className="text-xs text-[var(--text-secondary)] font-medium">暂无歌单</p>
           {onCreateSubPlaylist && (
             <button
               type="button"

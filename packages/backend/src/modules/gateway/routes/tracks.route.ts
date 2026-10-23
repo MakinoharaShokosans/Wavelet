@@ -5,6 +5,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { getConfig } from '../../../config/index.js';
 import { extractWaveformPeaks } from '../../inspector/waveform-extractor.js';
 import { IntegrityGuard } from '../../library/integrity-guard.js';
+import { parseTrackInfoFromFilename } from '../../library/musics-syncer.js';
 import { LyricsRepository } from '../../library/repositories/lyrics.repository.js';
 import { PlaylistRepository } from '../../library/repositories/playlist.repository.js';
 import { TrackRepository } from '../../library/repositories/track.repository.js';
@@ -13,7 +14,6 @@ import {
   findSidecarCover,
   findSidecarLyrics,
 } from '../../library/sidecar-detector.js';
-import { parseTrackInfoFromFilename } from '../../library/musics-syncer.js';
 import { computeFileHash } from '../../transcoder/flac-standardizer.js';
 import { cacheCoverArt, parseAudioMetadata } from '../../transcoder/metadata-writer.js';
 
@@ -54,20 +54,27 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     return track;
   });
 
-  // 3. 修改曲目元数据
+  // 3. 修改曲目元数据 (严格白名单限制，杜绝改写系统物理路径等敏感字段)
   fastify.patch('/api/tracks/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const track = trackRepo.findById(id);
     if (!track) {
       return reply.status(404).send({ error: '曲目不存在' });
     }
-    const body = request.body as {
+    const raw = (request.body || {}) as Record<string, unknown>;
+    const safeUpdates: {
       title?: string;
       artist?: string;
       album?: string;
       albumArtist?: string;
-    };
-    trackRepo.update(id, body);
+    } = {};
+
+    if (typeof raw.title === 'string') safeUpdates.title = raw.title;
+    if (typeof raw.artist === 'string') safeUpdates.artist = raw.artist;
+    if (typeof raw.album === 'string') safeUpdates.album = raw.album;
+    if (typeof raw.albumArtist === 'string') safeUpdates.albumArtist = raw.albumArtist;
+
+    trackRepo.update(id, safeUpdates);
     return { success: true, track: trackRepo.findById(id) };
   });
 

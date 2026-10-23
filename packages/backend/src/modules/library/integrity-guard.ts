@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../../config/index.js';
 import { logger } from '../bootstrap/logger.js';
+import { isPathInsideDir } from './musics-syncer.js';
 import { PlaylistRepository } from './repositories/playlist.repository.js';
 import { TrackRepository } from './repositories/track.repository.js';
 
@@ -69,24 +70,45 @@ export class IntegrityGuard {
     const track = this.trackRepo.findById(trackId);
     if (!track) return false;
 
-    // 1. 删除物理音频文件
-    if (fs.existsSync(track.filePath)) {
+    const config = getConfig();
+    const isAllowed =
+      isPathInsideDir(track.filePath, config.storage.libraryDir) ||
+      isPathInsideDir(track.filePath, config.storage.cacheDir) ||
+      isPathInsideDir(track.filePath, config.storage.dataDir);
+
+    // 1. 删除物理音频文件 (强制沙箱约束，禁止越界擦除操作系统文件)
+    if (isAllowed && fs.existsSync(track.filePath)) {
       try {
         fs.unlinkSync(track.filePath);
         logger.info({ filePath: track.filePath }, '[IntegrityGuard] 物理音频文件已彻底擦除');
       } catch (err) {
         logger.error({ filePath: track.filePath, err }, '[IntegrityGuard] 物理音频文件删除失败');
       }
+    } else if (!isAllowed) {
+      logger.warn(
+        { filePath: track.filePath },
+        '[IntegrityGuard] 安全拦截：禁止物理删除超出曲库安全目录之外的物理文件'
+      );
     }
 
-    // 2. 删除内嵌封面缓存
-    const config = getConfig();
+    // 2. 删除内嵌封面缓存与自愈缓存
     const coverPath = path.join(config.storage.cacheDir, 'covers', `${track.fileHash}.webp`);
     if (fs.existsSync(coverPath)) {
       try {
         fs.unlinkSync(coverPath);
       } catch {
         // 忽略封面删除失败
+      }
+    }
+    const healedDir = path.join(config.storage.cacheDir, 'healed');
+    if (fs.existsSync(healedDir)) {
+      const match = fs.readdirSync(healedDir).find((f) => f.startsWith(`${track.id}.`));
+      if (match) {
+        try {
+          fs.unlinkSync(path.join(healedDir, match));
+        } catch {
+          // 忽略
+        }
       }
     }
 

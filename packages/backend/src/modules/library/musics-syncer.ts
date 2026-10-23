@@ -59,6 +59,35 @@ export function parseTrackInfoFromFilename(
 }
 
 /**
+ * 校验路径是否严格位于指定目录内 (防止同前缀目录混淆与路径穿越)
+ */
+export function isPathInsideDir(filePath: string, dirPath: string): boolean {
+  const relative = path.relative(dirPath, filePath);
+  return !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+/**
+ * 解析曲目的最终可播放音频物理路径
+ * 若曲目处于 repaired 自愈状态且存在持久自愈缓存，则优先返回自愈后的音频路径；否则返回原 filePath
+ */
+export function resolvePlayableAudioPath(track: Track): string {
+  if (track.healthyStatus === 'repaired') {
+    const config = getConfig();
+    const healedDir = path.join(config.storage.cacheDir, 'healed');
+    if (fs.existsSync(healedDir)) {
+      const match = fs.readdirSync(healedDir).find((f) => f.startsWith(`${track.id}.`));
+      if (match) {
+        const healedFilePath = path.join(healedDir, match);
+        if (fs.existsSync(healedFilePath)) {
+          return healedFilePath;
+        }
+      }
+    }
+  }
+  return track.filePath;
+}
+
+/**
  * 常见未完成下载/临时文件后缀与特征前缀过滤 (ISSUE-05)
  */
 export function isIncompleteOrTempFile(fileName: string): boolean {
@@ -335,6 +364,25 @@ export async function processSingleAudioFile(
     trackRepo.insert(track);
     linkTrackToPlaylists(playlistRepo, track.id);
 
+    // 若曲目经历过自愈，将修复后的健康音频安全持久化至持久缓存区 (供直通播放使用)
+    if (
+      diagnosis.corruptions.length > 0 &&
+      activeAudioPath !== filePath &&
+      fs.existsSync(activeAudioPath)
+    ) {
+      try {
+        const healedDir = path.join(config.storage.cacheDir, 'healed');
+        if (!fs.existsSync(healedDir)) {
+          fs.mkdirSync(healedDir, { recursive: true });
+        }
+        const ext = path.extname(filePath) || '.flac';
+        const permanentHealedPath = path.join(healedDir, `${track.id}${ext}`);
+        fs.copyFileSync(activeAudioPath, permanentHealedPath);
+      } catch (err) {
+        logger.warn({ err, trackId: track.id }, '[曲库同步] 持久化自愈音频至缓存失败');
+      }
+    }
+
     if (hasLyrics && resolvedLyrics) {
       lyricsRepo.upsert({
         trackId,
@@ -379,7 +427,7 @@ function partitionDbTracks(
   let prunedCount = 0;
 
   for (const t of allDbTracks) {
-    if (!t.filePath.startsWith(targetDir)) {
+    if (!isPathInsideDir(t.filePath, targetDir)) {
       trackRepo.delete(t.id);
       prunedCount++;
     } else if (diskPathsSet.has(t.filePath)) {
@@ -518,7 +566,7 @@ export async function syncMusicsDirectory(
 
   // 2. 探查数据库存量
   const allDbTracks = trackRepo.getAllTracks(true);
-  const tracksInTargetDir = allDbTracks.filter((t) => t.filePath.startsWith(targetDir));
+  const tracksInTargetDir = allDbTracks.filter((t) => isPathInsideDir(t.filePath, targetDir));
 
   // 防空门保底 (ISSUE-04 熔断保护): 若扫描目录结果为空 (0个音频)，但数据库中已存在该目录的存量曲目，
   // 极可能是目录被误重命名、临时移走或清空。为防止全库误标记为失联，立即熔断终止本次同步。

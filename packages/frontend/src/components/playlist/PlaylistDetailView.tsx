@@ -96,8 +96,8 @@ const PlaylistInfoBlock: React.FC<PlaylistInfoBlockProps> = ({
         subPlaylistsWithCover.length >= 4
           ? subPlaylistsWithCover.slice(0, 4)
           : subPlaylistsWithCover.length === 3
-          ? [...subPlaylistsWithCover, subPlaylistsWithCover[0]]
-          : [...subPlaylistsWithCover, ...subPlaylistsWithCover];
+            ? [...subPlaylistsWithCover, subPlaylistsWithCover[0]]
+            : [...subPlaylistsWithCover, ...subPlaylistsWithCover];
 
       return (
         <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-[1px] bg-[var(--border-subtle)]">
@@ -637,7 +637,10 @@ export const PlaylistDetailView: React.FC = () => {
       const allTracks = allTracksNested.flat();
       if (allTracks.length > 0) {
         void playTrack(allTracks[0], allTracks, currentPlaylist.name);
-        showToast(`已开始播放分类目录《${currentPlaylist.name}》（共 ${allTracks.length} 首）`, 'success');
+        showToast(
+          `已开始播放分类目录《${currentPlaylist.name}》（共 ${allTracks.length} 首）`,
+          'success'
+        );
       } else {
         showToast('当前分类目录下所有歌单均无可用曲目', 'warn');
       }

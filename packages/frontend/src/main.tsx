@@ -14,4 +14,3 @@ if (rootElement) {
     </React.StrictMode>
   );
 }
-

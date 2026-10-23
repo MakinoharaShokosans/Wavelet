@@ -310,11 +310,7 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                   <SvgIcons name={isFolder ? 'folder' : 'list'} size={18} />
                 </div>
                 <h2 className="font-bold text-base text-[var(--text-primary)]">
-                  {isEdit
-                    ? isFolder
-                      ? '编辑分类'
-                      : '编辑歌单'
-                    : '新建歌单'}
+                  {isEdit ? (isFolder ? '编辑分类' : '编辑歌单') : '新建歌单'}
                 </h2>
               </div>
               <button
@@ -458,9 +454,7 @@ export const PlaylistModal: React.FC<PlaylistModalProps> = ({
                         ) : (
                           <>
                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] mx-1 flex-shrink-0" />
-                            <span className="text-[var(--text-secondary)]">
-                              (根目录 / 无父级)
-                            </span>
+                            <span className="text-[var(--text-secondary)]">(根目录 / 无父级)</span>
                           </>
                         )}
                       </div>

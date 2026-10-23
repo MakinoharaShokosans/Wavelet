@@ -57,4 +57,23 @@ describe('Unit Test: Config Schema & Self-Healing', () => {
       sandbox.cleanup();
     }
   });
+
+  it('合规配置文件中显式设定的 titleParseMode 应当完整保留', () => {
+    const sandbox = createTestSandbox();
+    try {
+      const customConfig = {
+        ...sandbox.config,
+        storage: {
+          ...sandbox.config.storage,
+          titleParseMode: 'tag' as const,
+        },
+      };
+      fs.writeFileSync(sandbox.configPath, JSON.stringify(customConfig, null, 2), 'utf-8');
+
+      const loaded = loadConfig(sandbox.configPath);
+      expect(loaded.storage.titleParseMode).toBe('tag');
+    } finally {
+      sandbox.cleanup();
+    }
+  });
 });

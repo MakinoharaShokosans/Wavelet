@@ -37,19 +37,13 @@ describe('Unit Test: Filename-to-Title Auto Sync (启动与增量同步自动对
 
   describe('parseTrackInfoFromFilename 规则器独立测试', () => {
     it('智能模式：应当正确识别 "歌手 - 歌名 (作品名/版本)" 结构', () => {
-      const res = parseTrackInfoFromFilename(
-        '/musics/折戸伸治 - Radiance (Rewrite).flac',
-        'smart'
-      );
+      const res = parseTrackInfoFromFilename('/musics/折戸伸治 - Radiance (Rewrite).flac', 'smart');
       expect(res.artist).toBe('折戸伸治');
       expect(res.title).toBe('Radiance (Rewrite)');
     });
 
     it('智能模式：歌曲名自身含横杠时应仅以第一个 " - " 为界拆分', () => {
-      const res = parseTrackInfoFromFilename(
-        '/musics/Lia - 夏影 -AIR- (AIR).flac',
-        'smart'
-      );
+      const res = parseTrackInfoFromFilename('/musics/Lia - 夏影 -AIR- (AIR).flac', 'smart');
       expect(res.artist).toBe('Lia');
       expect(res.title).toBe('夏影 -AIR- (AIR)');
     });

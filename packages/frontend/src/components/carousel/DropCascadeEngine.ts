@@ -188,12 +188,9 @@ export function useCarouselSnap({
   }, [totalItems, next, prev]);
 
   // 保留 React 原生回调以兼容历史 props
-  const handleWheel = useCallback(
-    (_e: React.WheelEvent<HTMLDivElement>) => {
-      // 原生 DOM 监听已接管并做了 preventDefault
-    },
-    []
-  );
+  const handleWheel = useCallback((_e: React.WheelEvent<HTMLDivElement>) => {
+    // 原生 DOM 监听已接管并做了 preventDefault
+  }, []);
 
   // 5. 拖拽手势集成 (点击+水平滑动拖动卡片)
   const snapOffset = calculateSnapOffset(activeIndex, containerWidth, totalItems, config);
@@ -249,4 +246,3 @@ export function useCarouselSnap({
     isDraggingRef,
   };
 }
-

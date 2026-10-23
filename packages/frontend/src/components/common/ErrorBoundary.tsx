@@ -47,9 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
               <SvgIcons name="alert" size={28} />
             </div>
 
-            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">
-              界面渲染遇到异常
-            </h2>
+            <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">界面渲染遇到异常</h2>
 
             <p className="text-sm text-[var(--text-secondary)] mb-4">
               播放器已自动拦截错误以防止页面损坏，你可以尝试重置界面或重新载入应用。

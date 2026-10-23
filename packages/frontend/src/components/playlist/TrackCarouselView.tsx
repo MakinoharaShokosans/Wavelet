@@ -503,7 +503,9 @@ export const TrackCarouselView: React.FC<TrackCarouselViewProps> = ({ tracks, pl
                   onRestore={() => restoreTrack(track.id)}
                   onPurge={() => handlePurge(track)}
                   onRefresh={() => void handleRefreshTrack(track)}
-                  onRemoveFromPlaylist={() => removeTrackFromPlaylist(effectivePlaylistId, track.id)}
+                  onRemoveFromPlaylist={() =>
+                    removeTrackFromPlaylist(effectivePlaylistId, track.id)
+                  }
                   onMoveToTrash={() => handleMoveToTrash(track)}
                 />
               </motion.div>

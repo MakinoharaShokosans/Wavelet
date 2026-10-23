@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { getConfig } from '../../../config/index.js';
+import { isPathInsideDir, resolvePlayableAudioPath } from '../../library/musics-syncer.js';
 import { TrackRepository } from '../../library/repositories/track.repository.js';
 
 const MIME_MAP: Record<string, string> = {
@@ -21,14 +23,32 @@ export const streamRoute: FastifyPluginAsync = async (fastify) => {
     const { trackId } = request.params as { trackId: string };
     const track = trackRepo.findById(trackId);
 
-    if (!track || !fs.existsSync(track.filePath)) {
+    if (!track) {
+      return reply.status(404).send({ error: '曲目不存在' });
+    }
+
+    const effectivePath = resolvePlayableAudioPath(track);
+    if (!fs.existsSync(effectivePath)) {
       return reply.status(404).send({ error: '曲目不存在或物理文件已断链' });
     }
 
-    const stat = fs.statSync(track.filePath);
+    // 路径越界沙箱安全防线
+    const config = getConfig();
+    const isAllowed =
+      isPathInsideDir(effectivePath, config.storage.libraryDir) ||
+      isPathInsideDir(effectivePath, config.storage.cacheDir) ||
+      isPathInsideDir(effectivePath, config.storage.dataDir);
+
+    if (!isAllowed) {
+      return reply
+        .status(403)
+        .send({ error: '安全拦截：禁止读取非曲库或缓存范围之外的敏感物理文件' });
+    }
+
+    const stat = fs.statSync(effectivePath);
     const fileSize = stat.size;
     const range = request.headers.range;
-    const ext = path.extname(track.filePath).toLowerCase();
+    const ext = path.extname(effectivePath).toLowerCase();
     const contentType = MIME_MAP[ext] || 'audio/flac';
 
     reply.header('Accept-Ranges', 'bytes');
@@ -36,7 +56,7 @@ export const streamRoute: FastifyPluginAsync = async (fastify) => {
 
     if (!range) {
       reply.header('Content-Length', fileSize);
-      const stream = fs.createReadStream(track.filePath);
+      const stream = fs.createReadStream(effectivePath);
       return reply.send(stream);
     }
 
@@ -55,7 +75,7 @@ export const streamRoute: FastifyPluginAsync = async (fastify) => {
     reply.header('Content-Range', `bytes ${start}-${end}/${fileSize}`);
     reply.header('Content-Length', chunkSize);
 
-    const stream = fs.createReadStream(track.filePath, { start, end });
+    const stream = fs.createReadStream(effectivePath, { start, end });
     return reply.send(stream);
   };
 
