@@ -347,16 +347,18 @@ describe('Integration Test: Gateway Web API Extensions (Web 前端网关扩展�
     // 允许 404 或已存在路径
     expect([200, 404]).toContain(emptyDlRes.statusCode);
 
-    // 2. 导出备份 (不包含物理音频以加速测试)
+    // 2. 导出备份 (不包含物理音频以加速测试，指定沙箱路径防止污染用户家目录)
+    const testBackupZip = path.join(sandbox.rootDir, 'gateway_test_backup.zip');
     const exportRes = await app.inject({
       method: 'POST',
       url: '/api/backup/export',
       headers,
-      payload: { includeAudio: false },
+      payload: { targetZipPath: testBackupZip, includeAudio: false },
     });
     expect(exportRes.statusCode).toBe(200);
     const expData = JSON.parse(exportRes.body);
     expect(expData.success).toBe(true);
+    expect(expData.data.targetZipPath).toBe(testBackupZip);
     expect(expData.downloadUrl).toBe('/api/backup/download');
 
     // 3. 流式下载刚导出的备份包
