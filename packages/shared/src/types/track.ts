@@ -32,6 +32,8 @@ export interface Track {
   isTrashed?: boolean;
   isMissing?: boolean;
   missingAt?: number | null;
+  titleLocked?: boolean;
+  artistLocked?: boolean;
   createdAt: number;
   updatedAt: number;
 }

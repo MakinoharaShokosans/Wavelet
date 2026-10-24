@@ -31,6 +31,8 @@ interface TrackRow {
   is_trashed: number | null;
   is_missing: number | null;
   missing_at: number | null;
+  title_locked: number | null;
+  artist_locked: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -59,6 +61,8 @@ function mapRowToTrack(row: TrackRow): Track {
     isTrashed: Boolean(row.is_trashed),
     isMissing: Boolean(row.is_missing),
     missingAt: row.missing_at ?? undefined,
+    titleLocked: Boolean(row.title_locked),
+    artistLocked: Boolean(row.artist_locked),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -71,18 +75,22 @@ export class TrackRepository {
     this.db = db || getDatabase();
   }
 
+  getDatabase(): Database.Database {
+    return this.db;
+  }
+
   insert(track: Track): void {
     const stmt = this.db.prepare(`
       INSERT INTO tracks (
         id, title, artist, album, album_artist, duration, bitrate, sample_rate,
         bit_depth, channels, file_path, file_size, file_hash, has_embedded_cover,
         has_embedded_lyrics, healthy_status, repair_details, play_count, last_played_at,
-        is_trashed, is_missing, missing_at, created_at, updated_at
+        is_trashed, is_missing, missing_at, title_locked, artist_locked, created_at, updated_at
       ) VALUES (
         @id, @title, @artist, @album, @album_artist, @duration, @bitrate, @sample_rate,
         @bit_depth, @channels, @file_path, @file_size, @file_hash, @has_embedded_cover,
         @has_embedded_lyrics, @healthy_status, @repair_details, @play_count, @last_played_at,
-        @is_trashed, @is_missing, @missing_at, @created_at, @updated_at
+        @is_trashed, @is_missing, @missing_at, @title_locked, @artist_locked, @created_at, @updated_at
       )
     `);
 
@@ -109,6 +117,8 @@ export class TrackRepository {
       is_trashed: track.isTrashed ? 1 : 0,
       is_missing: track.isMissing ? 1 : 0,
       missing_at: track.missingAt ?? null,
+      title_locked: track.titleLocked ? 1 : 0,
+      artist_locked: track.artistLocked ? 1 : 0,
       created_at: track.createdAt,
       updated_at: track.updatedAt,
     });
@@ -300,6 +310,8 @@ export class TrackRepository {
       ['hasEmbeddedLyrics', 'has_embedded_lyrics'],
       ['isTrashed', 'is_trashed'],
       ['isMissing', 'is_missing'],
+      ['titleLocked', 'title_locked'],
+      ['artistLocked', 'artist_locked'],
     ];
 
     for (const [key, col] of booleanFields) {

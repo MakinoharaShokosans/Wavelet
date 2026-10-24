@@ -159,6 +159,19 @@ export const trackService = {
   },
 
   /**
+   * 重置曲目元数据并解除字段锁定 (ISSUE-14)
+   */
+  async resetMetadata(
+    id: string,
+    fields?: ('title' | 'artist')[]
+  ): Promise<{ success: boolean; track: Track }> {
+    return apiClient.post<{ success: boolean; track: Track }>(
+      `/api/tracks/${encodeURIComponent(id)}/reset-metadata`,
+      { fields }
+    );
+  },
+
+  /**
    * 获取带 Token 的曲目封面图片直连 URL
    */
   getCoverUrl(id: string, timestamp?: number): string {

@@ -412,7 +412,7 @@ describe('Integration Test: Gateway Web API Extensions (Web 前端网关扩展�
     expect(emptyDirRes.statusCode).toBe(400);
 
     // 3. 包含有效音频的独立目录原地就地索引
-    const importSourceDir = path.join(sandbox.config.storage.dataDir, 'import_fresh_dir');
+    const importSourceDir = path.join(sandbox.rootDir, 'import_fresh_dir');
     fs.mkdirSync(importSourceDir, { recursive: true });
     fs.copyFileSync(TEST_AUDIO_PATH, path.join(importSourceDir, 'fresh_track.flac'));
 

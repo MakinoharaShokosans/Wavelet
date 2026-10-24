@@ -271,9 +271,15 @@ export class BackupManager {
       // 插入或更新数据库记录
       const existing = this.trackRepo.findByHash(archivedTrack.fileHash);
       if (existing) {
-        this.db
-          .prepare('UPDATE tracks SET file_path = ?, updated_at = ? WHERE file_hash = ?')
-          .run(finalAudioPath, Date.now(), archivedTrack.fileHash);
+        this.trackRepo.update(existing.id, {
+          filePath: finalAudioPath,
+          title: archivedTrack.title,
+          artist: archivedTrack.artist,
+          album: archivedTrack.album,
+          albumArtist: archivedTrack.albumArtist,
+          titleLocked: archivedTrack.titleLocked,
+          artistLocked: archivedTrack.artistLocked,
+        });
       } else {
         this.trackRepo.insert(archivedTrack);
       }

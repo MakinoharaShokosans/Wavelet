@@ -6,12 +6,17 @@ import { logger } from '../bootstrap/logger.js';
 import { broadcastTaskProgress } from '../gateway/ws/broadcaster.js';
 import { diagnoseAudioFile, executeHealingPipeline } from '../inspector/pipeline.js';
 import { extractWaveformPeaks } from '../inspector/waveform-extractor.js';
-import { computeFileHash } from '../transcoder/flac-standardizer.js';
+import { computeFileHashAsync } from '../transcoder/flac-standardizer.js';
 import { cacheCoverArt, parseAudioMetadata } from '../transcoder/metadata-writer.js';
+import { healedCache, resolvePlayableAudioPath } from './healed-cache.js';
+import { isPathInsideDir } from './path-guard.js';
+import { LibraryRootRepository } from './repositories/library-root.repository.js';
 import { LyricsRepository } from './repositories/lyrics.repository.js';
 import { PlaylistRepository } from './repositories/playlist.repository.js';
 import { TrackRepository } from './repositories/track.repository.js';
 import { findSidecarCover, findSidecarLyrics } from './sidecar-detector.js';
+
+export { isPathInsideDir, healedCache, resolvePlayableAudioPath };
 
 export const AUDIO_EXTENSIONS = new Set([
   '.flac',
@@ -31,6 +36,11 @@ export const AUDIO_EXTENSIONS = new Set([
 export interface ParsedTrackInfo {
   title: string;
   artist?: string;
+}
+
+export interface DerivedFieldsResult {
+  title: string;
+  artist: string;
 }
 
 /**
@@ -59,32 +69,42 @@ export function parseTrackInfoFromFilename(
 }
 
 /**
- * 校验路径是否严格位于指定目录内 (防止同前缀目录混淆与路径穿越)
+ * 集中根据文件名解析结果或元数据更新曲目的 title 与 artist，
+ * 严格尊重用户手动编辑锁 (titleLocked / artistLocked)。
+ * 若字段已被锁定，则坚决跳过覆盖，保留原有值。
  */
-export function isPathInsideDir(filePath: string, dirPath: string): boolean {
-  const relative = path.relative(dirPath, filePath);
-  return !relative.startsWith('..') && !path.isAbsolute(relative);
-}
+export function applyFilenameDerivedFields(
+  track: Pick<Track, 'title' | 'artist'> & {
+    titleLocked?: boolean;
+    artistLocked?: boolean;
+  },
+  parsed: ParsedTrackInfo,
+  mode: 'smart' | 'filename' | 'tag' = 'smart',
+  fallbackMetadata?: { title?: string; artist?: string }
+): DerivedFieldsResult {
+  let targetTitle = track.title;
+  let targetArtist = track.artist;
 
-/**
- * 解析曲目的最终可播放音频物理路径
- * 若曲目处于 repaired 自愈状态且存在持久自愈缓存，则优先返回自愈后的音频路径；否则返回原 filePath
- */
-export function resolvePlayableAudioPath(track: Track): string {
-  if (track.healthyStatus === 'repaired') {
-    const config = getConfig();
-    const healedDir = path.join(config.storage.cacheDir, 'healed');
-    if (fs.existsSync(healedDir)) {
-      const match = fs.readdirSync(healedDir).find((f) => f.startsWith(`${track.id}.`));
-      if (match) {
-        const healedFilePath = path.join(healedDir, match);
-        if (fs.existsSync(healedFilePath)) {
-          return healedFilePath;
-        }
-      }
+  if (mode === 'tag') {
+    if (!track.titleLocked) {
+      targetTitle = fallbackMetadata?.title || parsed.title;
+    }
+    if (!track.artistLocked) {
+      targetArtist = fallbackMetadata?.artist || track.artist || '未知艺术家';
+    }
+  } else {
+    if (!track.titleLocked) {
+      targetTitle = parsed.title;
+    }
+    if (!track.artistLocked) {
+      targetArtist = parsed.artist || fallbackMetadata?.artist || track.artist || '未知艺术家';
     }
   }
-  return track.filePath;
+
+  return {
+    title: targetTitle,
+    artist: targetArtist,
+  };
 }
 
 /**
@@ -259,7 +279,7 @@ export async function processSingleAudioFile(
     });
 
     const stat = fs.statSync(filePath);
-    const fileHash = computeFileHash(filePath);
+    const fileHash = await computeFileHashAsync(filePath);
 
     // 检查曲库中是否已存在该曲目 (若哈希或文件路径已存在则安全复用，保证幂等)
     const existingTrack = trackRepo.findByHash(fileHash) || trackRepo.findByPath(filePath);
@@ -371,13 +391,7 @@ export async function processSingleAudioFile(
       fs.existsSync(activeAudioPath)
     ) {
       try {
-        const healedDir = path.join(config.storage.cacheDir, 'healed');
-        if (!fs.existsSync(healedDir)) {
-          fs.mkdirSync(healedDir, { recursive: true });
-        }
-        const ext = path.extname(filePath) || '.flac';
-        const permanentHealedPath = path.join(healedDir, `${track.id}${ext}`);
-        fs.copyFileSync(activeAudioPath, permanentHealedPath);
+        healedCache.persist(track.id, activeAudioPath, path.extname(filePath));
       } catch (err) {
         logger.warn({ err, trackId: track.id }, '[曲库同步] 持久化自愈音频至缓存失败');
       }
@@ -419,22 +433,37 @@ function partitionDbTracks(
   allDbTracks: Track[],
   targetDir: string,
   diskPathsSet: Set<string>,
-  trackRepo: TrackRepository
+  trackRepo: TrackRepository,
+  allRoots: string[] = []
 ): MissingPool {
   const existingPathMap = new Map<string, Track>();
   const missingTracksByHash = new Map<string, Track>();
   const missingTracksById = new Map<string, Track>();
-  let prunedCount = 0;
+  const prunedCount = 0;
 
   for (const t of allDbTracks) {
-    if (!isPathInsideDir(t.filePath, targetDir)) {
-      trackRepo.delete(t.id);
-      prunedCount++;
-    } else if (diskPathsSet.has(t.filePath)) {
-      existingPathMap.set(t.filePath, t);
+    if (isPathInsideDir(t.filePath, targetDir)) {
+      if (diskPathsSet.has(t.filePath)) {
+        existingPathMap.set(t.filePath, t);
+      } else {
+        missingTracksByHash.set(t.fileHash, t);
+        missingTracksById.set(t.id, t);
+      }
     } else {
-      missingTracksByHash.set(t.fileHash, t);
-      missingTracksById.set(t.id, t);
+      // 库外曲目保护防线 (ISSUE-11):
+      // 若曲目位于已登记的其他合法曲库根目录下，由其自身根目录的扫描逻辑负责，此处不予干涉；
+      // 若曲目未被任何已知曲库根覆盖，仅将其置为软断链标记 (is_missing=1)，绝对禁止从数据库自动物理删除！
+      const isInsideAnyOtherRoot = allRoots.some(
+        (r) => r !== targetDir && isPathInsideDir(t.filePath, r)
+      );
+      if (!isInsideAnyOtherRoot && !t.isMissing) {
+        trackRepo.update(t.id, {
+          isMissing: true,
+          missingAt: Date.now(),
+        });
+        t.isMissing = true;
+        t.missingAt = Date.now();
+      }
     }
   }
 
@@ -444,15 +473,15 @@ function partitionDbTracks(
 /**
  * 尝试通过 SHA-256 哈希寻回重命名或挪入新目录的曲目 (ISSUE-02)
  */
-function resolveTrackMigration(
+async function resolveTrackMigration(
   filePath: string,
   missingTracksByHash: Map<string, Track>,
   missingTracksById: Map<string, Track>,
   trackRepo: TrackRepository,
   titleParseMode: 'smart' | 'filename' | 'tag' = 'smart'
-): Track | null {
+): Promise<Track | null> {
   const stat = fs.statSync(filePath);
-  const fileHash = computeFileHash(filePath);
+  const fileHash = await computeFileHashAsync(filePath);
 
   const migratedTrack = missingTracksByHash.get(fileHash);
   if (migratedTrack) {
@@ -465,10 +494,11 @@ function resolveTrackMigration(
     };
     if (titleParseMode !== 'tag') {
       const parsed = parseTrackInfoFromFilename(filePath, titleParseMode);
-      updateData.title = parsed.title;
-      if (parsed.artist) updateData.artist = parsed.artist;
-      migratedTrack.title = parsed.title;
-      if (parsed.artist) migratedTrack.artist = parsed.artist;
+      const derived = applyFilenameDerivedFields(migratedTrack, parsed, titleParseMode);
+      updateData.title = derived.title;
+      updateData.artist = derived.artist;
+      migratedTrack.title = derived.title;
+      migratedTrack.artist = derived.artist;
     }
     trackRepo.update(migratedTrack.id, updateData);
     migratedTrack.filePath = filePath;
@@ -589,12 +619,18 @@ export async function syncMusicsDirectory(
   }
 
   // 3. 划分在席文件与失联候选池
+  const libraryRootRepo = new LibraryRootRepository(trackRepo.getDatabase());
+  const allRoots = libraryRootRepo.getAllRootPaths();
+  if (!allRoots.includes(targetDir)) {
+    allRoots.push(targetDir);
+  }
+
   const {
     existingPathMap,
     missingTracksByHash,
     missingTracksById,
     prunedCount: initialPruned,
-  } = partitionDbTracks(allDbTracks, targetDir, diskPathsSet, trackRepo);
+  } = partitionDbTracks(allDbTracks, targetDir, diskPathsSet, trackRepo, allRoots);
   const prunedCount = initialPruned;
 
   if (missingTracksById.size > 0) {
@@ -637,15 +673,15 @@ export async function syncMusicsDirectory(
         );
       }
 
-      // 自动文件名标题校准 (每次启动与同步时生效)
+      // 自动文件名标题校准 (每次启动与同步时生效，尊重字段锁)
       const parsedInfo = parseTrackInfoFromFilename(filePath, parseMode);
       if (parseMode !== 'tag') {
-        const targetTitle = parsedInfo.title;
-        const targetArtist = parsedInfo.artist || existing.artist;
-        if (
-          existing.title !== targetTitle ||
-          (parsedInfo.artist && existing.artist !== targetArtist)
-        ) {
+        const { title: targetTitle, artist: targetArtist } = applyFilenameDerivedFields(
+          existing,
+          parsedInfo,
+          parseMode
+        );
+        if (existing.title !== targetTitle || existing.artist !== targetArtist) {
           trackRepo.update(existing.id, {
             title: targetTitle,
             artist: targetArtist,
@@ -674,7 +710,7 @@ export async function syncMusicsDirectory(
       if (isDirty || options?.resyncMetadata) {
         try {
           const metadata = await parseAudioMetadata(filePath);
-          const fileHash = computeFileHash(filePath);
+          const fileHash = await computeFileHashAsync(filePath);
 
           // ISSUE-07: 优先使用内嵌封面；若无内嵌封面，自动嗅探同级外挂封面
           let hasCover = metadata.hasEmbeddedCover;
@@ -707,14 +743,10 @@ export async function syncMusicsDirectory(
             });
           }
 
-          const title =
-            parseMode === 'tag'
-              ? metadata.title || path.basename(filePath, path.extname(filePath))
-              : parsedInfo.title;
-          const artist =
-            parseMode === 'tag'
-              ? metadata.artist || '未知艺术家'
-              : parsedInfo.artist || metadata.artist || '未知艺术家';
+          const { title, artist } = applyFilenameDerivedFields(existing, parsedInfo, parseMode, {
+            title: metadata.title,
+            artist: metadata.artist,
+          });
 
           trackRepo.update(existing.id, {
             title,
@@ -764,7 +796,7 @@ export async function syncMusicsDirectory(
     }
 
     // 尝试寻回重命名或路径迁移
-    const migrated = resolveTrackMigration(
+    const migrated = await resolveTrackMigration(
       filePath,
       missingTracksByHash,
       missingTracksById,
@@ -829,4 +861,58 @@ export async function syncMusicsDirectory(
     refreshed: refreshedCount,
     tracks: importedTracks,
   };
+}
+
+/**
+ * 历史自愈曲目缓存轻量回填机制 (ISSUE-12: 单次冷启上限 20 首，防止长时间阻塞启动)
+ */
+export async function backfillRepairedCache(
+  trackRepo: TrackRepository,
+  limit = 20
+): Promise<number> {
+  const db = trackRepo.getDatabase();
+  const rows = db
+    .prepare(
+      `SELECT id, file_path as filePath FROM tracks
+       WHERE healthy_status = 'repaired' AND (is_missing = 0 OR is_missing IS NULL)
+       ORDER BY updated_at DESC
+       LIMIT ?`
+    )
+    .all(limit * 2) as { id: string; filePath: string }[];
+
+  let backfilled = 0;
+  for (const row of rows) {
+    if (backfilled >= limit) break;
+    const track = trackRepo.findById(row.id);
+    if (!track) continue;
+
+    // 若缓存已就绪则跳过
+    if (healedCache.findCacheFile(track.id)) continue;
+
+    // 若原文件不存在则跳过
+    if (!fs.existsSync(track.filePath)) continue;
+
+    try {
+      const diagnosis = await diagnoseAudioFile(track.filePath);
+      if (diagnosis.corruptions.length > 0) {
+        const healingResult = await executeHealingPipeline(diagnosis);
+        if (
+          healingResult.success &&
+          healingResult.healedPath &&
+          fs.existsSync(healingResult.healedPath)
+        ) {
+          healedCache.persist(track.id, healingResult.healedPath, path.extname(track.filePath));
+          backfilled++;
+          logger.info(
+            { trackId: track.id, title: track.title },
+            '[自愈回填] 成功回填历史自愈曲目持久化缓存'
+          );
+        }
+      }
+    } catch (err) {
+      logger.warn({ trackId: track.id, err }, '[自愈回填] 回填单轨自愈缓存失败，跳过');
+    }
+  }
+
+  return backfilled;
 }

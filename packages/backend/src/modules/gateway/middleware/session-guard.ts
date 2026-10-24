@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { safeCompareTokens } from './host-origin-guard.js';
 
 let sessionSecret = '';
 
@@ -25,17 +26,28 @@ export async function sessionGuard(request: FastifyRequest, reply: FastifyReply)
       (pathname.startsWith('/api/playlists/') && pathname.endsWith('/cover')));
 
   // 1. 允许非 /api 前缀的静态网页资源、安全握手首次请求与封面只读 GET 请求
-  if (!pathname.startsWith('/api') || pathname.startsWith('/api/auth/token') || isCoverGet) {
+  if (!pathname.startsWith('/api') || pathname === '/api/auth/token' || isCoverGet) {
     return;
   }
 
-  // 2. 媒体流与静态封面允许携带 Query token (供原生 <audio> 标签与 <img> 标签使用)
+  // 2. 仅允许媒体流与静态封面携带 Query token (供原生 <audio> 标签与 <img> 标签使用)
+  const isMediaStream =
+    pathname.startsWith('/api/stream/') ||
+    (pathname.startsWith('/api/tracks/') && pathname.endsWith('/stream'));
+  const isCover =
+    (pathname.startsWith('/api/tracks/') && pathname.endsWith('/cover')) ||
+    (pathname.startsWith('/api/playlists/') && pathname.endsWith('/cover'));
+
   const queryToken = (request.query as Record<string, string>)?.token;
-  const headerToken = request.headers['x-wavelet-session'] || request.headers['local-session-key'];
+  const headerToken = (request.headers['x-wavelet-session'] ||
+    request.headers['local-session-key']) as string | undefined;
 
-  const token = headerToken || queryToken;
+  let token = headerToken;
+  if (!token && (isMediaStream || isCover)) {
+    token = queryToken;
+  }
 
-  if (!token || token !== getOrCreateSessionSecret()) {
+  if (!token || !safeCompareTokens(token, getOrCreateSessionSecret())) {
     reply.status(401).send({ error: '未授权的本地请求：缺少有效 Local-Session-Key' });
   }
 }

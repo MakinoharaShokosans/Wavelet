@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { getConfig } from '../../../config/index.js';
-import { isPathInsideDir, resolvePlayableAudioPath } from '../../library/musics-syncer.js';
+import { resolvePlayableAudioPath } from '../../library/musics-syncer.js';
+import { isPathInsideAnyRoot } from '../../library/path-guard.js';
+import { LibraryRootRepository } from '../../library/repositories/library-root.repository.js';
 import { TrackRepository } from '../../library/repositories/track.repository.js';
 
 const MIME_MAP: Record<string, string> = {
@@ -18,6 +20,7 @@ const MIME_MAP: Record<string, string> = {
 
 export const streamRoute: FastifyPluginAsync = async (fastify) => {
   const trackRepo = new TrackRepository();
+  const libraryRootRepo = new LibraryRootRepository();
 
   const handleStream = async (request: FastifyRequest, reply: FastifyReply) => {
     const { trackId } = request.params as { trackId: string };
@@ -32,12 +35,14 @@ export const streamRoute: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: '曲目不存在或物理文件已断链' });
     }
 
-    // 路径越界沙箱安全防线
+    // 路径越界沙箱安全防线 (ISSUE-11: 放行所有曲库根及缓存，严格禁止读取 dataDir)
     const config = getConfig();
-    const isAllowed =
-      isPathInsideDir(effectivePath, config.storage.libraryDir) ||
-      isPathInsideDir(effectivePath, config.storage.cacheDir) ||
-      isPathInsideDir(effectivePath, config.storage.dataDir);
+    const allowedRoots = [
+      ...libraryRootRepo.getAllRootPaths(),
+      config.storage.libraryDir,
+      config.storage.cacheDir,
+    ];
+    const isAllowed = isPathInsideAnyRoot(effectivePath, allowedRoots);
 
     if (!isAllowed) {
       return reply

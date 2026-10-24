@@ -49,7 +49,7 @@ Wavelet/
 │   ├── shared/                      # 跨端共享强类型契约 (@wavelet/shared)
 │   ├── backend/                     # 本地音频引擎、数据库仓储与网关服务 (@wavelet/backend)
 │   └── frontend/                    # 基于 React 19 的现代化发烧级 Web 客户端 (@wavelet/frontend)
-└── tests/                           # 后端全层级自动化测试套件 (33 套件 / 143 测试)
+└── tests/                           # 后端全层级自动化测试套件 (40 套件 / 197 测试)
     ├── unit/                        # 单元测试 (配置、嗅探、自愈、仓储、波形、队列等)
     ├── integration/                 # 集成测试 (流水线、网关 API、完整性校验等)
     ├── e2e/                         # 端到端测试 (生命周期全流程、异常断电自愈)
@@ -84,7 +84,7 @@ pnpm check:fix
 # TypeScript 严格类型检查 (零 any)
 pnpm typecheck
 
-# 运行全量 33 个测试套件 (143 个测试)
+# 运行全量 40 个测试套件 (197 个测试)
 pnpm test
 ```
 
@@ -148,7 +148,7 @@ cp .env.example .env
 
 ## ✦ 交付验收指标
 
-- **全量测试通过率**：33/33 测试套件通过，143/143 测试用例 100% 绿色通过。
+- **全量测试通过率**：40/40 测试套件通过，197/197 测试用例 100% 绿色通过。
 - **冷启动响应耗时**：$\approx 23.4\text{ms}$，首屏秒级浮现数据看板。
 - **静态资源开销**：前端生产 Bundle 经过 gzip 压缩后仅 $\approx 137\text{KB}$。
 - **代码健康度**：Biome 0 Error，TypeScript 0 Error，零测试回归。

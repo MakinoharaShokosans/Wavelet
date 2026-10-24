@@ -41,6 +41,7 @@ export interface LibraryState {
     id: string,
     updates: { title?: string; artist?: string; album?: string; albumArtist?: string }
   ) => Promise<Track>;
+  resetTrackMetadata: (id: string, fields?: ('title' | 'artist')[]) => Promise<Track>;
   updateTrackCover: (id: string, coverBase64: string) => Promise<void>;
   removeTrackCover: (id: string) => Promise<void>;
   updatePlaylistCover: (id: string, coverBase64: string) => Promise<void>;
@@ -296,6 +297,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 
   updateTrack: async (id, updates) => {
     const res = await trackService.updateTrack(id, updates);
+    const updated = res.track;
+    set((state) => ({
+      currentPlaylistTracks: state.currentPlaylistTracks.map((t) =>
+        t.id === id ? { ...t, ...updated } : t
+      ),
+    }));
+    return updated;
+  },
+
+  resetTrackMetadata: async (id, fields) => {
+    const res = await trackService.resetMetadata(id, fields);
     const updated = res.track;
     set((state) => ({
       currentPlaylistTracks: state.currentPlaylistTracks.map((t) =>

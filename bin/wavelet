@@ -219,6 +219,15 @@ EOF
   echo ""
 }
 
+# 获取本地会话认证 Token (支持非回环环境 WAVELET_ACCESS_KEY 认证)
+fetch_auth_token() {
+  local auth_args=()
+  if [[ -n "${WAVELET_ACCESS_KEY:-}" ]]; then
+    auth_args=(-H "x-wavelet-access-key: ${WAVELET_ACCESS_KEY}")
+  fi
+  curl -s -m 2 "${auth_args[@]}" "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true
+}
+
 # ------------------------------------------------------------------------------
 # 8. 核心子命令逻辑
 # ------------------------------------------------------------------------------
@@ -386,7 +395,7 @@ cmd_status() {
     # 尝试探测 /api/stats 数据 (携带 Local-Session-Key 安全握手)
     if command -v curl >/dev/null 2>&1; then
       local token
-      token="$(curl -s -m 1 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+      token="$(fetch_auth_token)"
       local stats_res=""
       if [[ -n "$token" ]]; then
         stats_res="$(curl -s -m 1 -H "x-wavelet-session: $token" "http://${HOST}:${PORT}/api/stats" 2>/dev/null || true)"
@@ -560,7 +569,7 @@ cmd_backup() {
         ' "$target")
       else
         local token
-        token="$(curl -s -m 2 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+        token="$(fetch_auth_token)"
         local body="{}"
         if [[ -n "$target" ]]; then
           body="{\"targetZipPath\":\"$target\"}"
@@ -601,7 +610,7 @@ cmd_backup() {
         ' "$zip_file" "$dest_dir")
       else
         local token
-        token="$(curl -s -m 2 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+        token="$(fetch_auth_token)"
         local body
         if [[ -n "$dest_dir" ]]; then
           body="{\"zipFilePath\":\"$zip_file\",\"destinationAudioDir\":\"$dest_dir\"}"
@@ -641,7 +650,7 @@ cmd_import() {
     sleep 2
   fi
   local token
-  token="$(curl -s -m 2 "http://${HOST}:${PORT}/api/auth/token" 2>/dev/null | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)"
+  token="$(fetch_auth_token)"
   local res
   res="$(curl -s -m 300 -H "x-wavelet-session: $token" -H "Content-Type: application/json" -d "{\"directoryPath\":\"$dir\"}" "http://${HOST}:${PORT}/api/import/directory" 2>/dev/null || true)"
   if [[ "$res" =~ \"success\":true ]]; then

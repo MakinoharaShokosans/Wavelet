@@ -175,6 +175,32 @@ const migrations: Migration[] = [
       db.prepare(`UPDATE playlists SET name = '回收' WHERE id = 'default_trash';`).run();
     },
   },
+  {
+    version: 7,
+    name: '007_library_roots',
+    up: (db) => {
+      // 持久化曲库根目录 (ISSUE-11: 支持原地多目录索引与沙箱放行)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS library_roots (
+          path TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_library_roots_kind ON library_roots(kind);
+      `);
+    },
+  },
+  {
+    version: 8,
+    name: '008_track_field_locks',
+    up: (db) => {
+      // 手动编辑元数据字段锁 (ISSUE-14: 防止后续文件名同步覆盖用户手动编辑的歌名与歌手)
+      db.exec(`
+        ALTER TABLE tracks ADD COLUMN title_locked BOOLEAN DEFAULT 0;
+        ALTER TABLE tracks ADD COLUMN artist_locked BOOLEAN DEFAULT 0;
+      `);
+    },
+  },
 ];
 
 /**

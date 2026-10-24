@@ -68,12 +68,15 @@ const CoverUploadCard: React.FC<CoverUploadCardProps> = ({ coverPreview, onPick,
 );
 
 export const TrackEditModal: React.FC<TrackEditModalProps> = ({ isOpen, onClose, track }) => {
-  const { updateTrack, updateTrackCover, removeTrackCover } = useLibraryStore();
+  const { updateTrack, resetTrackMetadata, updateTrackCover, removeTrackCover } = useLibraryStore();
 
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [album, setAlbum] = useState('');
   const [albumArtist, setAlbumArtist] = useState('');
+  const [titleLocked, setTitleLocked] = useState(false);
+  const [artistLocked, setArtistLocked] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverBase64, setCoverBase64] = useState<string | null>(null);
   const [coverChanged, setCoverChanged] = useState(false);
@@ -88,12 +91,35 @@ export const TrackEditModal: React.FC<TrackEditModalProps> = ({ isOpen, onClose,
     setArtist(track.artist || '');
     setAlbum(track.album || '');
     setAlbumArtist(track.albumArtist || '');
+    setTitleLocked(Boolean(track.titleLocked));
+    setArtistLocked(Boolean(track.artistLocked));
     setCoverPreview(track.hasEmbeddedCover ? trackService.getCoverUrl(track.id, Date.now()) : null);
     setCoverBase64(null);
     setCoverChanged(false);
     setError(null);
     setIsSubmitting(false);
   }, [isOpen, track]);
+
+  const handleResetMetadata = async (fields: ('title' | 'artist')[]) => {
+    if (!track) return;
+    try {
+      setIsResetting(true);
+      setError(null);
+      const updated = await resetTrackMetadata(track.id, fields);
+      if (fields.includes('title')) {
+        setTitle(updated.title);
+        setTitleLocked(false);
+      }
+      if (fields.includes('artist')) {
+        setArtist(updated.artist);
+        setArtistLocked(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '重置元数据失败');
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -219,12 +245,29 @@ export const TrackEditModal: React.FC<TrackEditModalProps> = ({ isOpen, onClose,
 
               {/* 标题 */}
               <div>
-                <label
-                  htmlFor="trk-title-input"
-                  className="block text-xs font-semibold text-[var(--text-secondary)] mb-1"
-                >
-                  歌曲标题 <span className="text-[var(--accent-coral)]">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label
+                    htmlFor="trk-title-input"
+                    className="block text-xs font-semibold text-[var(--text-secondary)]"
+                  >
+                    歌曲标题 <span className="text-[var(--accent-coral)]">*</span>
+                  </label>
+                  {titleLocked && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        已手动锁定
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleResetMetadata(['title'])}
+                        disabled={isResetting}
+                        className="text-[10px] text-[var(--accent-coral)] hover:underline cursor-pointer disabled:opacity-50"
+                      >
+                        恢复为文件名
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <input
                   id="trk-title-input"
                   type="text"
@@ -238,12 +281,29 @@ export const TrackEditModal: React.FC<TrackEditModalProps> = ({ isOpen, onClose,
               <div className="grid grid-cols-2 gap-3">
                 {/* 艺术家 */}
                 <div>
-                  <label
-                    htmlFor="trk-artist-input"
-                    className="block text-xs font-semibold text-[var(--text-secondary)] mb-1"
-                  >
-                    艺术家
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label
+                      htmlFor="trk-artist-input"
+                      className="block text-xs font-semibold text-[var(--text-secondary)]"
+                    >
+                      艺术家
+                    </label>
+                    {artistLocked && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                          已手动锁定
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleResetMetadata(['artist'])}
+                          disabled={isResetting}
+                          className="text-[10px] text-[var(--accent-coral)] hover:underline cursor-pointer disabled:opacity-50"
+                        >
+                          恢复为文件名
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <input
                     id="trk-artist-input"
                     type="text"

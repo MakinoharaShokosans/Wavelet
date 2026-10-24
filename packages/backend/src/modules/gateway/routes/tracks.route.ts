@@ -1,11 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { HealthyStatus, TrackQueryParams } from '@wavelet/shared';
+import type { HealthyStatus, Track, TrackQueryParams } from '@wavelet/shared';
 import type { FastifyPluginAsync } from 'fastify';
 import { getConfig } from '../../../config/index.js';
 import { extractWaveformPeaks } from '../../inspector/waveform-extractor.js';
 import { IntegrityGuard } from '../../library/integrity-guard.js';
-import { parseTrackInfoFromFilename } from '../../library/musics-syncer.js';
+import {
+  applyFilenameDerivedFields,
+  parseTrackInfoFromFilename,
+} from '../../library/musics-syncer.js';
 import { LyricsRepository } from '../../library/repositories/lyrics.repository.js';
 import { PlaylistRepository } from '../../library/repositories/playlist.repository.js';
 import { TrackRepository } from '../../library/repositories/track.repository.js';
@@ -14,7 +17,7 @@ import {
   findSidecarCover,
   findSidecarLyrics,
 } from '../../library/sidecar-detector.js';
-import { computeFileHash } from '../../transcoder/flac-standardizer.js';
+import { computeFileHashAsync } from '../../transcoder/flac-standardizer.js';
 import { cacheCoverArt, parseAudioMetadata } from '../../transcoder/metadata-writer.js';
 
 export const tracksRoute: FastifyPluginAsync = async (fastify) => {
@@ -67,12 +70,26 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
       artist?: string;
       album?: string;
       albumArtist?: string;
+      titleLocked?: boolean;
+      artistLocked?: boolean;
     } = {};
 
-    if (typeof raw.title === 'string') safeUpdates.title = raw.title;
-    if (typeof raw.artist === 'string') safeUpdates.artist = raw.artist;
+    if (typeof raw.title === 'string') {
+      safeUpdates.title = raw.title;
+      if (raw.title !== track.title) {
+        safeUpdates.titleLocked = true;
+      }
+    }
+    if (typeof raw.artist === 'string') {
+      safeUpdates.artist = raw.artist;
+      if (raw.artist !== track.artist) {
+        safeUpdates.artistLocked = true;
+      }
+    }
     if (typeof raw.album === 'string') safeUpdates.album = raw.album;
     if (typeof raw.albumArtist === 'string') safeUpdates.albumArtist = raw.albumArtist;
+    if (typeof raw.titleLocked === 'boolean') safeUpdates.titleLocked = raw.titleLocked;
+    if (typeof raw.artistLocked === 'boolean') safeUpdates.artistLocked = raw.artistLocked;
 
     trackRepo.update(id, safeUpdates);
     return { success: true, track: trackRepo.findById(id) };
@@ -285,7 +302,7 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
 
     try {
       const stat = fs.statSync(track.filePath);
-      const fileHash = computeFileHash(track.filePath);
+      const fileHash = await computeFileHashAsync(track.filePath);
       const metadata = await parseAudioMetadata(track.filePath);
 
       let hasCover = metadata.hasEmbeddedCover;
@@ -320,14 +337,10 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
       const config = getConfig();
       const parseMode = config.storage.titleParseMode || 'smart';
       const parsedInfo = parseTrackInfoFromFilename(track.filePath, parseMode);
-      const title =
-        parseMode === 'tag'
-          ? metadata.title || path.basename(track.filePath, path.extname(track.filePath))
-          : parsedInfo.title;
-      const artist =
-        parseMode === 'tag'
-          ? metadata.artist || '未知艺术家'
-          : parsedInfo.artist || metadata.artist || '未知艺术家';
+      const { title, artist } = applyFilenameDerivedFields(track, parsedInfo, parseMode, {
+        title: metadata.title,
+        artist: metadata.artist,
+      });
 
       trackRepo.update(track.id, {
         title,
@@ -356,5 +369,61 @@ export const tracksRoute: FastifyPluginAsync = async (fastify) => {
     } catch (err) {
       return reply.status(500).send({ error: `重新解析元数据失败: ${String(err)}` });
     }
+  });
+
+  // 11. 重置曲目元数据并解除字段锁定 (ISSUE-14)
+  fastify.post('/api/tracks/:id/reset-metadata', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const track = trackRepo.findById(id);
+    if (!track) {
+      return reply.status(404).send({ error: '曲目不存在' });
+    }
+
+    const body = (request.body || {}) as { fields?: ('title' | 'artist')[] };
+    const fieldsToReset =
+      Array.isArray(body.fields) && body.fields.length > 0
+        ? body.fields
+        : (['title', 'artist'] as const);
+
+    const config = getConfig();
+    const parseMode = config.storage.titleParseMode || 'smart';
+    const parsedInfo = parseTrackInfoFromFilename(track.filePath, parseMode);
+
+    const updates: Partial<Track> = {};
+
+    if (fieldsToReset.includes('title')) {
+      updates.titleLocked = false;
+      if (parseMode === 'tag') {
+        try {
+          const meta = await parseAudioMetadata(track.filePath);
+          updates.title = meta.title || parsedInfo.title;
+        } catch {
+          updates.title = parsedInfo.title;
+        }
+      } else {
+        updates.title = parsedInfo.title;
+      }
+    }
+
+    if (fieldsToReset.includes('artist')) {
+      updates.artistLocked = false;
+      if (parseMode !== 'tag' && parsedInfo.artist) {
+        updates.artist = parsedInfo.artist;
+      } else {
+        try {
+          const meta = await parseAudioMetadata(track.filePath);
+          updates.artist = meta.artist || '未知艺术家';
+        } catch {
+          updates.artist = '未知艺术家';
+        }
+      }
+    }
+
+    trackRepo.update(id, updates);
+    const updated = trackRepo.findById(id);
+    return {
+      success: true,
+      track: updated ? { ...updated, isFavorite: playlistRepo.isFavorite(id) } : null,
+    };
   });
 };

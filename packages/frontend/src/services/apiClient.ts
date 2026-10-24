@@ -50,7 +50,29 @@ export const apiClient = {
     sessionPromise = (async () => {
       try {
         const url = `${config.apiBaseUrl}/api/auth/token`;
-        const res = await fetch(url, { method: 'GET' });
+        const savedKey =
+          typeof window !== 'undefined'
+            ? window.sessionStorage?.getItem('wavelet_access_key')
+            : null;
+        let headers: Record<string, string> = {};
+        if (savedKey) {
+          headers['x-wavelet-access-key'] = savedKey;
+        }
+
+        let res = await fetch(url, { method: 'GET', headers });
+        if (!res.ok && res.status === 401 && typeof window !== 'undefined') {
+          const errData = (await res.json().catch(() => ({}))) as { requiresAccessKey?: boolean };
+          if (errData?.requiresAccessKey) {
+            const enteredKey = window.prompt(
+              '当前服务运行在非回环网络环境下，请输入 WAVELET_ACCESS_KEY 进行访问认证：'
+            );
+            if (enteredKey) {
+              window.sessionStorage?.setItem('wavelet_access_key', enteredKey);
+              headers = { 'x-wavelet-access-key': enteredKey };
+              res = await fetch(url, { method: 'GET', headers });
+            }
+          }
+        }
         if (!res.ok) {
           throw new ApiError(res.status, '获取会话令牌失败');
         }

@@ -16,11 +16,77 @@ export function getWorkerPool(): TranscodeWorkerPool {
   return sharedPool;
 }
 
+export interface ComputeHashOptions {
+  signal?: AbortSignal;
+  chunkSize?: number;
+}
+
+/**
+ * @deprecated Use computeFileHashAsync instead to avoid blocking the event loop on large audio files.
+ */
 export function computeFileHash(filePath: string): string {
   const hash = crypto.createHash('sha256');
   const buffer = fs.readFileSync(filePath);
   hash.update(buffer);
   return hash.digest('hex');
+}
+
+/**
+ * 流式异步计算文件的 SHA-256 哈希
+ * 通过 ReadableStream 逐块更新哈希（默认 1MB 分块），避免一次性载入大文件导致事件循环被同步阻塞
+ */
+export function computeFileHashAsync(
+  filePath: string,
+  options?: ComputeHashOptions
+): Promise<string> {
+  const chunkSize = options?.chunkSize ?? 1024 * 1024; // 1 MiB
+
+  return new Promise((resolve, reject) => {
+    if (options?.signal?.aborted) {
+      return reject(options.signal.reason ?? new Error('Aborted'));
+    }
+
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath, { highWaterMark: chunkSize });
+
+    let settled = false;
+
+    const cleanup = () => {
+      if (options?.signal) {
+        options.signal.removeEventListener('abort', onAbort);
+      }
+    };
+
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      stream.destroy();
+      reject(options?.signal?.reason ?? new Error('Aborted'));
+    };
+
+    if (options?.signal) {
+      options.signal.addEventListener('abort', onAbort, { once: true });
+    }
+
+    stream.on('data', (chunk) => {
+      hash.update(chunk);
+    });
+
+    stream.on('end', () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(hash.digest('hex'));
+    });
+
+    stream.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(err);
+    });
+  });
 }
 
 /**
@@ -76,7 +142,7 @@ export async function standardizeToFlac(
   }
 
   const stat = fs.statSync(targetFlacPath);
-  const fileHash = computeFileHash(targetFlacPath);
+  const fileHash = await computeFileHashAsync(targetFlacPath);
 
   // 提取并缓存封面
   if (metadata.hasEmbeddedCover && metadata.coverBuffer) {

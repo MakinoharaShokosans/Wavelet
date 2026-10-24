@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getConfig } from '../../config/index.js';
 import { logger } from '../bootstrap/logger.js';
-import { isPathInsideDir } from './musics-syncer.js';
+import { healedCache } from './healed-cache.js';
+import { isPathInsideAnyRoot } from './path-guard.js';
+import { LibraryRootRepository } from './repositories/library-root.repository.js';
 import { PlaylistRepository } from './repositories/playlist.repository.js';
 import { TrackRepository } from './repositories/track.repository.js';
 
@@ -71,10 +73,13 @@ export class IntegrityGuard {
     if (!track) return false;
 
     const config = getConfig();
-    const isAllowed =
-      isPathInsideDir(track.filePath, config.storage.libraryDir) ||
-      isPathInsideDir(track.filePath, config.storage.cacheDir) ||
-      isPathInsideDir(track.filePath, config.storage.dataDir);
+    const libraryRootRepo = new LibraryRootRepository(this.trackRepo.getDatabase());
+    const allowedRoots = [
+      ...libraryRootRepo.getAllRootPaths(),
+      config.storage.libraryDir,
+      config.storage.cacheDir,
+    ];
+    const isAllowed = isPathInsideAnyRoot(track.filePath, allowedRoots);
 
     // 1. 删除物理音频文件 (强制沙箱约束，禁止越界擦除操作系统文件)
     if (isAllowed && fs.existsSync(track.filePath)) {
@@ -100,17 +105,7 @@ export class IntegrityGuard {
         // 忽略封面删除失败
       }
     }
-    const healedDir = path.join(config.storage.cacheDir, 'healed');
-    if (fs.existsSync(healedDir)) {
-      const match = fs.readdirSync(healedDir).find((f) => f.startsWith(`${track.id}.`));
-      if (match) {
-        try {
-          fs.unlinkSync(path.join(healedDir, match));
-        } catch {
-          // 忽略
-        }
-      }
-    }
+    healedCache.invalidate(track.id);
 
     // 3. 删除数据库记录 (SQLite 级联外键自动清除 playlist_tracks 与 lyrics)
     const deleted = this.trackRepo.delete(trackId);

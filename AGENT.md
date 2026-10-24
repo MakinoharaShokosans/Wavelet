@@ -43,15 +43,17 @@ Wavelet/
 │   │       ├── config/              # 环境配置与路径解析 (.env, 常量)
 │   │       ├── modules/
 │   │       │   ├── bootstrap/       # 引导生命周期、环境探测、目录拓扑与平滑停机
-│   │       │   ├── gateway/         # Fastify HTTP RESTful API、WebSocket 广播与会话中间件
-│   │       │   │   ├── middleware/  # 本地会话安全看护 (session-guard)
+│   │       │   ├── gateway/         # Fastify HTTP RESTful API、WebSocket 广播与安全中间件
+│   │       │   │   ├── middleware/  # DNS Rebinding/Origin 守卫 (host-origin-guard) 与会话看护 (session-guard)
 │   │       │   │   ├── routes/      # 路由处理器 (tracks, playlists, settings, stream, import, backup)
-│   │       │   │   └── ws/          # 实时双向通信通道与进度广播
+│   │       │   │   └── ws/          # 实时双向通信通道、安全握手与进度广播
 │   │       │   ├── inspector/       # 音频体检与坏损自愈引擎 (sniffer, pipeline, healers, waveform)
 │   │       │   ├── library/         # 数据库仓储与曲库一致性中枢
 │   │       │   │   ├── db/          # better-sqlite3 实例、增量迁移机制 (migrator)
-│   │       │   │   ├── repositories/# 数据持久化仓储 (TrackRepository, PlaylistRepository)
-│   │       │   │   ├── musics-syncer.ts   # 原地零拷贝扫描、重命名保活、增量热刷新与软失效
+│   │       │   │   ├── repositories/# 数据持久化仓储 (Track, Playlist, LibraryRoot, Lyrics)
+│   │       │   │   ├── path-guard.ts    # 路径沙箱安全防卫、曲库多根模型校验与敏感目录拦截
+│   │       │   │   ├── healed-cache.ts  # 自愈音频确定性缓存原子落位与生命周期一致性维护
+│   │       │   │   ├── musics-syncer.ts # 原地零拷贝扫描、重命名保活、流式哈希与字段锁防覆盖
 │   │       │   │   ├── sidecar-detector.ts# 外挂伴随歌词 (.lrc) 与同级封面探测
 │   │       │   │   ├── integrity-guard.ts # 防灾熔断、防空门与孤立关联全量校准
 │   │       │   │   └── backup-manager.ts  # 曲库全量备份与跨机迁移管理器
@@ -119,6 +121,15 @@ Wavelet/
 
 ### 铁律 6：代码修改与测试执行纪律 (Workflow Discipline)
 - **先改好代码，再统一跑测试**：严禁在未完成代码修改、甚至还有语法错误时反复盲目运行测试。修改完毕后，按照 `pnpm check:fix` -> `pnpm typecheck` -> `pnpm test` -> `pnpm build` 顺次验证。
+
+### 铁律 7：任何文件系统读/删必须经 path-guard (Path Sandbox Principle)
+- 无论是流播放、封面读取、直通硬件播放还是物理 purge，**所有针对磁盘文件系统的读取与删除操作，都必须严格通过 `path-guard.ts` 的 `isPathInsideAnyRoot` 校验**，只允许放行合法已登记的曲库根目录 (`library_roots`) 以及自愈缓存目录 (`cacheDir/healed`)。
+- **严禁向沙箱放行整个 `dataDir`**，杜绝任意读取 `wavelet.db`、数据库备份或运行日志的越权漏洞。
+
+### 铁律 8：元数据覆盖必须尊重字段锁 (Metadata Field Lock Principle)
+- 启动与增量同步自动对齐物理文件名、以及增量刷新标签时，**必须统一调用 `applyFilenameDerivedFields` 并严格尊重曲目的字段锁 (`titleLocked` / `artistLocked`)**。
+- 绝对禁止在未解除锁定的情况下覆盖用户手动编辑的歌名与歌手。
+- 用户手动编辑元数据仅在数据库持久层记录并加锁，**严禁向原始母带文件物理写回 ID3/Vorbis 标签**，确保发烧级母带文件资产绝对不可篡改。
 
 ---
 

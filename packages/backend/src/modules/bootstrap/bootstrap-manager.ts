@@ -1,11 +1,14 @@
+import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { APP_NAME, APP_VERSION } from '@wavelet/shared';
 import { loadConfig } from '../../config/index.js';
-import { startServer } from '../gateway/server.js';
+import { assertAccessKeyIfRequired, startServer } from '../gateway/server.js';
 import { getDatabase } from '../library/db/client.js';
 import { runMigrations } from '../library/db/migrator.js';
 import { type IntegrityAuditResult, IntegrityGuard } from '../library/integrity-guard.js';
-import { syncMusicsDirectory } from '../library/musics-syncer.js';
+import { backfillRepairedCache, syncMusicsDirectory } from '../library/musics-syncer.js';
+import { LibraryRootRepository } from '../library/repositories/library-root.repository.js';
+import { TrackRepository } from '../library/repositories/track.repository.js';
 import { type AudioDevice, getDeviceManager } from '../player/device-manager.js';
 import { type RuntimeEnvironmentInfo, probeEnvironment } from './env-probe.js';
 import { getInspectionLogger, getLogger, logger } from './logger.js';
@@ -46,6 +49,7 @@ export class BootstrapManager {
 
     // 2. 加载与自愈本地配置文件
     const config = loadConfig(customConfigPath);
+    assertAccessKeyIfRequired(config.server.host);
 
     // 3. 幂等创建私有数据拓扑与工作目录
     const topology = provisionStorage();
@@ -69,19 +73,44 @@ export class BootstrapManager {
     integrityGuard.cleanTempDirectory();
     const audit = integrityGuard.auditMissingFiles();
 
-    // 7.1 专属根目录 musics 便携曲库自动增量同步与文件名标题校验
+    // 7.1 登记主曲库根目录并自动增量同步所有有效曲库根 (ISSUE-11)
     try {
-      const syncResult = await syncMusicsDirectory(config.storage.libraryDir);
-      logger.info(
-        {
-          imported: syncResult.imported,
-          refreshed: syncResult.refreshed,
-          migrated: syncResult.migrated,
-        },
-        '[BootstrapManager] 启动曲库自动增量同步与文件名标题对齐就绪'
-      );
+      const rootRepo = new LibraryRootRepository(db);
+      rootRepo.upsertRoot(config.storage.libraryDir, 'primary');
+
+      const allRoots = rootRepo.getAllRoots();
+      for (const root of allRoots) {
+        if (fs.existsSync(root.path)) {
+          const syncResult = await syncMusicsDirectory(root.path);
+          logger.info(
+            {
+              root: root.path,
+              kind: root.kind,
+              imported: syncResult.imported,
+              refreshed: syncResult.refreshed,
+              migrated: syncResult.migrated,
+            },
+            '[BootstrapManager] 启动曲库自动增量同步与文件名标题对齐就绪'
+          );
+        } else {
+          logger.warn(
+            { root: root.path, kind: root.kind },
+            '[BootstrapManager] 登记的曲库根目录当前不可达 (如未挂载或已移动)，跳过同步并保留存量数据'
+          );
+        }
+      }
     } catch (err) {
       logger.warn({ err }, '[BootstrapManager] 启动曲库自动同步失败，跳过');
+    }
+
+    // 7.2 历史自愈曲目物理缓存轻量回填 (ISSUE-12: 限制最多 20 首，绝不拖垮冷启动)
+    try {
+      const backfilled = await backfillRepairedCache(new TrackRepository(db), 20);
+      if (backfilled > 0) {
+        logger.info({ backfilled }, '[BootstrapManager] 历史自愈曲目物理缓存轻量回填完成');
+      }
+    } catch (err) {
+      logger.warn({ err }, '[BootstrapManager] 启动自愈物理缓存轻量回填失败，跳过');
     }
 
     // 8. 启动 Fastify REST 与 WebSocket 网关

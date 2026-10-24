@@ -46,7 +46,7 @@ describe('Unit Test: musics/ Directory Isolation & Portable Library', () => {
     }
   });
 
-  it('syncMusicsDirectory 应当自动清理不在指定 musics 目录下的历史曲目', async () => {
+  it('syncMusicsDirectory 应当将不在任何曲库根内的历史曲目标记为软缺失 (isMissing=true)', async () => {
     const sandbox = createTestSandbox();
     try {
       loadConfig(sandbox.configPath);
@@ -92,8 +92,10 @@ describe('Unit Test: musics/ Directory Isolation & Portable Library', () => {
       expect(syncRes.scanned).toBe(0);
       expect(syncRes.imported).toBe(0);
 
-      // 验证不在 dedicatedMusicsDir 内的曲目已被彻底隔离清理
-      expect(trackRepo.findById('trk_outside_001')).toBeNull();
+      // T4 (ISSUE-11): 不在任何曲库根内的历史曲目不再自动物理/数据库硬删除，而是安全标记为软缺失 (is_missing=1)
+      const outsideTrack = trackRepo.findById('trk_outside_001');
+      expect(outsideTrack).not.toBeNull();
+      expect(outsideTrack?.isMissing).toBe(true);
     } finally {
       sandbox.cleanup();
     }
